@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    image: aldea:local
+    container_name: deployment_aldea-app-1
+    restart: unless-stopped
+    # Un solo contenedor: usa la red puente de Docker en vez de crear una red propia
+    # (así no ocupa un rango de red nuevo en el servidor).
+    network_mode: bridge
+    environment:
+      TZ: Europe/Madrid
+      JEVMURA_JEV: "1"          # decide Jev; si falla, el decisor de reglas
+      JEVMURA_SEMILLA: "2026"   # solo se usa la primera vez, al crear el mundo
+    env_file:
+      - secrets.env             # OPENROUTER_API_KEY y ALDEA_ADMIN_CLAVE (ver secrets.env.example)
+    volumes:
+      - aldea_datos:/app/datos  # mundo.db: el mundo, la crónica, los resúmenes y el árbol
+
+volumes:
+  aldea_datos:
+    name: aldea_datos

@@ -1,0 +1,176 @@
+/* Variables de diseño de La aldea (plantilla de la skill diseno-web). Estilo "La ventana": el mapa
+   ocupa toda la pantalla y la interfaz flota encima en paneles.
+   Principal: verde bosque. Acento: dorado. El dorado no es el complementario del verde, como pide
+   la skill, pero lo eligió el dueño del proyecto al validar el diseño. */
+
+:root {
+  /* Altura de la barra de estado de abajo del todo; lo que va pegado abajo se sube esta altura. */
+  --alto-estado: 24px;
+
+  /* Marca: tono OKLCH (0-360) y croma de cada color. El acento, complementario (+180)
+     o complementario dividido (+150 / +210) del principal. */
+  --hue-primary: 155;  /* verde bosque */
+  --hue-accent: 82;    /* dorado */
+  --chroma-primary: 0.07;
+  --chroma-accent: 0.13;
+
+  /* Escalas 50-950: misma familia de tono, luminosidad de mayor a menor. */
+  --primary-50: oklch(0.97 calc(var(--chroma-primary) * 0.15) var(--hue-primary));
+  --primary-100: oklch(0.94 calc(var(--chroma-primary) * 0.3) var(--hue-primary));
+  --primary-200: oklch(0.88 calc(var(--chroma-primary) * 0.5) var(--hue-primary));
+  --primary-300: oklch(0.8 calc(var(--chroma-primary) * 0.75) var(--hue-primary));
+  --primary-400: oklch(0.7 var(--chroma-primary) var(--hue-primary));
+  --primary-500: oklch(0.6 var(--chroma-primary) var(--hue-primary));
+  --primary-600: oklch(0.52 var(--chroma-primary) var(--hue-primary));
+  --primary-700: oklch(0.44 calc(var(--chroma-primary) * 0.9) var(--hue-primary));
+  --primary-800: oklch(0.36 calc(var(--chroma-primary) * 0.8) var(--hue-primary));
+  --primary-900: oklch(0.28 calc(var(--chroma-primary) * 0.65) var(--hue-primary));
+  --primary-950: oklch(0.2 calc(var(--chroma-primary) * 0.5) var(--hue-primary));
+
+  --accent-100: oklch(0.94 calc(var(--chroma-accent) * 0.3) var(--hue-accent));
+  --accent-500: oklch(0.65 var(--chroma-accent) var(--hue-accent));
+  --accent-700: oklch(0.48 calc(var(--chroma-accent) * 0.9) var(--hue-accent));
+
+  /* Neutros teñidos del principal (croma muy bajo). */
+  --neutral-0: oklch(1 0 0);
+  --neutral-50: oklch(0.98 0.006 var(--hue-primary));
+  --neutral-100: oklch(0.955 0.008 var(--hue-primary));
+  --neutral-200: oklch(0.91 0.01 var(--hue-primary));
+  --neutral-300: oklch(0.84 0.012 var(--hue-primary));
+  --neutral-500: oklch(0.6 0.014 var(--hue-primary));
+  --neutral-600: oklch(0.5 0.014 var(--hue-primary));
+  --neutral-700: oklch(0.4 0.014 var(--hue-primary));
+  --neutral-800: oklch(0.3 0.012 var(--hue-primary));
+  --neutral-850: oklch(0.25 0.012 var(--hue-primary));
+  --neutral-900: oklch(0.21 0.01 var(--hue-primary));
+  --neutral-950: oklch(0.16 0.008 var(--hue-primary));
+
+  /* Estado: fijos, aparte de la marca. */
+  --success: oklch(0.55 0.13 150);
+  --warning: oklch(0.62 0.14 70);
+  --danger: oklch(0.55 0.19 27);
+  --info: oklch(0.55 0.14 250);
+
+  /* Tipografía: escala 1,2-1,25. */
+  --font-pixel: "Pixelify Sans", var(--font-sans-base);
+  --font-sans-base: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Menlo, monospace;
+  --text-xs: 0.75rem;   /* 12 */
+  --text-sm: 0.875rem;  /* 14 */
+  --text-md: 1rem;      /* 16 */
+  --text-lg: 1.25rem;   /* 20 */
+  --text-xl: 1.5rem;    /* 24 */
+  --text-2xl: 1.875rem; /* 30 */
+  --text-3xl: 2.25rem;  /* 36 */
+
+  /* Espaciado: múltiplos de 4. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px;
+  --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+
+  /* Forma. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --control-height: 40px;
+
+  /* Movimiento. */
+  --duration: 180ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ---- Variables de función: modo claro ---- */
+  color-scheme: light;
+  --color-bg: var(--neutral-50);
+  --color-surface: var(--neutral-0);
+  --color-surface-muted: var(--neutral-100);
+  --color-border: var(--neutral-200);
+  --color-border-strong: var(--neutral-300);
+  --color-text: var(--neutral-950);
+  --color-text-muted: var(--neutral-600);
+  --color-primary: var(--primary-700);
+  --color-primary-hover: var(--primary-800);
+  --color-primary-soft: var(--primary-50);
+  --color-on-primary: var(--neutral-0);
+  --color-accent-soft: var(--accent-100);
+  --color-focus: var(--primary-500);
+  /* Estado activo (regla N5): degradado del color activo (--color-active, más abajo). */
+  --active-line: linear-gradient(90deg, transparent, var(--color-active) 50%, transparent);
+  --active-glow: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-active) 14%, transparent) 50%, transparent);
+  --shadow-1: 0 1px 2px oklch(0.3 0.03 var(--hue-primary) / 0.08);
+  --shadow-2: 0 6px 16px oklch(0.3 0.03 var(--hue-primary) / 0.1);
+  --shadow-3: 0 16px 40px oklch(0.3 0.03 var(--hue-primary) / 0.16);
+
+  /* Paneles que flotan sobre el mapa: crema en modo claro. */
+  --panel-bg: oklch(0.975 0.018 90 / 0.94);
+  --panel-elevado: oklch(1 0.012 90 / 0.75);
+  --panel-borde: oklch(0.85 0.03 90 / 0.8);
+  --panel-texto: oklch(0.24 0.04 155);
+  --panel-texto-suave: oklch(0.45 0.035 155);
+  --panel-sombra: 0 8px 24px oklch(0.25 0.05 155 / 0.22);
+  --color-accent: oklch(0.52 0.12 75);
+  --color-active: var(--color-accent);
+  --en-directo: oklch(0.6 0.2 27);
+}
+
+/* Modo oscuro: sigue al sistema salvo que el usuario haya elegido claro (data-theme="light"),
+   y se fuerza con data-theme="dark". Los dos bloques llevan los mismos valores. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: var(--neutral-950);
+    --color-surface: var(--neutral-900);
+    --color-surface-muted: var(--neutral-850);
+    --color-border: var(--neutral-800);
+    --color-border-strong: var(--neutral-700);
+    --color-text: var(--neutral-50);
+    --color-text-muted: var(--neutral-300);
+    --color-primary: var(--primary-300);
+    --color-primary-hover: var(--primary-200);
+    --color-primary-soft: oklch(0.3 calc(var(--chroma-primary) * 0.5) var(--hue-primary));
+    --color-on-primary: var(--primary-950);
+    --color-accent-soft: oklch(0.3 calc(var(--chroma-accent) * 0.5) var(--hue-accent));
+    --shadow-1: 0 0 0 1px var(--neutral-800);
+    --shadow-2: 0 0 0 1px var(--neutral-700);
+    --shadow-3: 0 0 0 1px var(--neutral-700), 0 16px 40px oklch(0 0 0 / 0.5);
+    --panel-bg: oklch(0.23 0.035 158 / 0.9);
+    --panel-elevado: oklch(0.29 0.035 158 / 0.85);
+    --panel-borde: oklch(0.38 0.035 158 / 0.7);
+    --panel-texto: oklch(0.96 0.02 90);
+    --panel-texto-suave: oklch(0.8 0.025 110);
+    --panel-sombra: 0 8px 24px oklch(0 0 0 / 0.45);
+    --color-accent: oklch(0.83 0.13 85);
+    --color-active: var(--color-accent);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: var(--neutral-950);
+  --color-surface: var(--neutral-900);
+  --color-surface-muted: var(--neutral-850);
+  --color-border: var(--neutral-800);
+  --color-border-strong: var(--neutral-700);
+  --color-text: var(--neutral-50);
+  --color-text-muted: var(--neutral-300);
+  --color-primary: var(--primary-300);
+  --color-primary-hover: var(--primary-200);
+  --color-primary-soft: oklch(0.3 calc(var(--chroma-primary) * 0.5) var(--hue-primary));
+  --color-on-primary: var(--primary-950);
+  --color-accent-soft: oklch(0.3 calc(var(--chroma-accent) * 0.5) var(--hue-accent));
+  --shadow-1: 0 0 0 1px var(--neutral-800);
+  --shadow-2: 0 0 0 1px var(--neutral-700);
+  --shadow-3: 0 0 0 1px var(--neutral-700), 0 16px 40px oklch(0 0 0 / 0.5);
+  --panel-bg: oklch(0.23 0.035 158 / 0.9);
+  --panel-elevado: oklch(0.29 0.035 158 / 0.85);
+  --panel-borde: oklch(0.38 0.035 158 / 0.7);
+  --panel-texto: oklch(0.96 0.02 90);
+  --panel-texto-suave: oklch(0.8 0.025 110);
+  --panel-sombra: 0 8px 24px oklch(0 0 0 / 0.45);
+  --color-accent: oklch(0.83 0.13 85);
+  --color-active: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.db
+.env
+web/node_modules/
+web/dist/
+datos/
+secrets.env
+.pytest_cache/
+# Despliegue propio del autor (rutas y scripts de su servidor): se queda fuera del repositorio.
+deploy/
+docs/README_DEPLOY.md
+secrets.env
+*.env
+!secrets.env.example
