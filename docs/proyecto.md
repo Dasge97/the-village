@@ -594,3 +594,96 @@ abajo. Lo decide el propio panel, no Jev ni las reglas.
   sesión es una cookie firmada con la contraseña, solo para `/api/admin`, de 7 días.
 - Código: `jevmura/admin.py` (API) y `web/src/componentes/VistaAdmin.vue` (pantalla).
 
+
+## Evolución de los asentamientos (versión 3, decidido el 25-10-2026)
+
+Hasta la 2.2, una aldea termina pronto sus obras: casas hasta 20 personas y 20 tramos de muralla,
+que se acaban en uno o dos años del mundo. Después la piedra y la madera llegan al tope del
+almacén y no hay en qué gastarlas. Los pueblos, villas y ciudades solo eligen entre unas pocas
+obras. La versión 3 les da una evolución larga, con cosas que hacer y en qué gastar durante toda
+su vida.
+
+### La regla del coste
+
+El gasto en Jev no sube. Jev cobra por llamada, no por opción.
+
+- Los habitantes siguen decidiendo igual (un adulto cada 5 minutos, con el límite de dólares al
+  día). Las obras nuevas son opciones dentro de esas mismas decisiones.
+- El orden de las obras lo deciden las reglas, según lo que más falte.
+- Nuevo: un **consejo de la aldea** elige con Jev, una vez por estación del mundo, la siguiente
+  obra o si hacer una fiesta. Son 4 llamadas por aldea y día real a ×1, de la bolsa de consejos.
+- En pueblos, villas y ciudades todo lo nuevo son números y reglas. El consejo sigue llamando a
+  Jev una vez por estación; solo tiene más opciones entre las que elegir.
+
+### La aldea: etapas
+
+Una aldea sigue siendo pequeña (20 personas como mucho). Su evolución son edificios por etapas.
+Cada etapa se abre al terminar la anterior. Cada edificio tiene un efecto concreto, sale en el
+mapa con un gráfico del paquete y aparece como opción «construir» en las decisiones.
+
+| Etapa | Se abre cuando… | Edificios |
+|---|---|---|
+| 1. Asentamiento | desde el principio | Casas y muralla (como ahora) |
+| 2. Aldea | la muralla está completa por primera vez | Pozo, granero, taller, torre de vigía y huertos nuevos |
+| 3. Aldea próspera | están los cinco edificios de la etapa 2 | Templo, dojo, mercado y almacén de piedra |
+| 4. Mejoras | están los cuatro de la etapa 3 | Casas de piedra, muralla reforzada y faroles, tramo a tramo y casa a casa |
+
+| Edificio | Efecto |
+|---|---|
+| Pozo | Menos enfermedades; la salud se recupera antes |
+| Granero | Cabe más comida y se pierde menos cada día |
+| Taller | Leñadores y canteros sacan más |
+| Torre de vigía | Más defensa de noche; los ataques rompen menos muralla |
+| Huertos nuevos | Más campo: más cosecha |
+| Templo | Más ánimo; una muerte baja menos el ánimo de los demás |
+| Dojo | Cada guardia defiende más |
+| Mercado | La aldea puede mandar caravanas a las aldeas y pueblos cercanos con lo que le sobra |
+| Almacén de piedra | Cabe más madera y piedra |
+| Casa de piedra | No se quema tan fácil; más salud y ánimo para los que viven en ella |
+| Muralla reforzada | Un ataque casi nunca rompe ese tramo |
+| Faroles | Los ataques de noche se frenan mejor |
+
+Los costes se ajustan con la simulación por lotes (`python -m jevmura.motor.lote`) para este
+ritmo: la etapa 2 se termina hacia el año 5 del mundo, la 3 hacia el 10 y las mejoras de la 4
+duran hasta el año 15 o 20. Si hace falta, se baja la producción de piedra y madera.
+
+### La aldea: gastos que no se acaban
+
+- **Desgaste:** cada edificio, casa y tramo de muralla tiene un estado de 0 a 100. Baja poco a
+  poco con los años, con los ataques y con los incendios. Por debajo de 50 su efecto se queda en
+  la mitad, y a 0 se pierde. Repararlo es una obra («reparar el granero») que cuesta una parte de
+  lo que costó hacerlo.
+- **Fiesta de la cosecha:** en otoño, si sobra comida, el consejo puede celebrarla. Gasta comida
+  y sube el ánimo de todos.
+- **Invierno duro:** algunos inviernos hace falta el doble de leña.
+- **Boda:** al formar pareja se gasta algo de comida en la celebración y sube el ánimo.
+- **Comercio:** con mercado, lo que llega al tope del almacén sale en caravana hacia una aldea o
+  un pueblo cercano que lo necesite, y vuelve lo que a la aldea le falta.
+
+### Pueblos, villas y ciudades: mucha más vida
+
+Como todo son reglas, aquí cabe mucha más profundidad.
+
+| Tema | Qué se añade |
+|---|---|
+| Riqueza | Un recurso nuevo, el oro, que sale de impuestos por persona y del comercio. Se gasta en monumentos, en comprar comida en una hambruna y en pagar defensa |
+| Edificios nuevos | Herrería, escuela, hospital, acueducto, puerto (si hay río), mina, biblioteca, teatro y cuartel, cada uno con su efecto |
+| Avances | Herramientas de hierro, molinos, rueda, escritura, medicina, ingeniería… Se abren con años y edificios, y cada uno mejora algo para siempre. El consejo puede elegir investigar |
+| Especialidad del terreno | Pieles en la nieve, especias y vidrio en el desierto, hierbas en el pantano, madera noble en el bosque, trigo en la pradera. El comercio entre terrenos distintos vale más |
+| Sociedad | El ánimo bajo durante mucho tiempo trae protestas y, si sigue, una revuelta que cambia al consejo. El alcalde (o gobernador) se elige cada 4 años entre los notables |
+| Relaciones | Alianzas (comercio y ayuda en los ataques) y rivalidades entre vecinos. Una ciudad puede pedir tributo a los pueblos de alrededor. Escaramuzas pequeñas, sin guerras que vacíen el mapa |
+| Sucesos grandes | Inundaciones, terremotos, un gran incendio, hambrunas, peste, un cometa, la visita de un mercader extranjero, el descubrimiento de una mina, el festival anual |
+| Monumentos | Gran templo, castillo, faro, estatua. Años de obra, se ven en el mapa y atraen gente |
+
+El consejo gana opciones nuevas (investigar, aliarse, empezar un monumento, subir o bajar
+impuestos) en la misma llamada de cada estación. Todo queda en la crónica y en la historia del
+mundo, y lo importante sale en los grandes momentos.
+
+### Versiones previstas
+
+1. 2.3: aldea, etapa 2, desgaste y consejo de la aldea. Costes ajustados con la simulación.
+2. 2.4: aldea, etapas 3 y 4, fiestas, inviernos duros, bodas y comercio de las aldeas.
+3. 2.5: pueblos, villas y ciudades: oro, edificios nuevos, especialidades y comercio por especialidad.
+4. 2.6: avances, sociedad (elecciones, protestas y revueltas), sucesos grandes y monumentos.
+5. 2.7: relaciones entre asentamientos: alianzas, rivalidades y tributos.
+6. 3.0: todo junto, comprobado con la simulación de la aldea y la del mundo.
