@@ -7,7 +7,7 @@ Every villager decides their life with Jev. You watch it live in the browser.
 
 **English** · [Español](README.es.md)
 
-[![Version](https://img.shields.io/badge/version-3.3-2ea44f)](web/src/versiones.js)
+[![Version](https://img.shields.io/badge/version-3.4-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -63,6 +63,8 @@ The interface and the game texts are in Spanish.
   workshop, temple, dojo, market…) that wear out and need repairs. Towns and cities have gold and
   taxes, research, monuments, elections and revolts, and they make alliances, rivalries or pay
   tribute. All of this is rules: Jev makes no extra calls.
+- **One single map:** you can travel the whole world by dragging the view: there are woods and
+  roads between settlements, and you see the neighbours with their people moving.
 - **Every place has its own shape:** villages come in one of four layouts (river, road, lake or
   clearing) and their own size. Towns, large towns and cities are much bigger and have their own
   shape: streets from the square, two squares, or a grid with a double wall.

@@ -7,7 +7,7 @@ Cada habitante de una aldea decide su vida con Jev. Lo ves en directo en el nave
 
 [English](README.md) · **Español**
 
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-3.3-2ea44f)](web/src/versiones.js)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-3.4-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -60,6 +60,8 @@ El segundo objetivo es ver crecer un mundo entero sin nada escrito de antemano: 
   templo, dojo, mercado…) que se estropean y hay que reparar. Los pueblos, villas y ciudades
   tienen oro e impuestos, avances, monumentos, elecciones y revueltas, y se alían, se hacen
   rivales o pagan tributo. Todo esto son reglas: Jev no hace más llamadas.
+- **Un solo mapa:** el mundo entero se puede recorrer arrastrando la vista: entre un asentamiento y
+  otro hay bosque y caminos, y los vecinos se ven con su gente moviéndose.
 - **Cada sitio con su forma:** las aldeas salen con uno de cuatro formatos (de río, de camino, de
   lago o de claro) y su propio tamaño. Pueblos, villas y ciudades son mucho más grandes y tienen su
   propia forma: calles desde la plaza, dos plazas o una cuadrícula con doble muralla.

@@ -780,6 +780,27 @@ Con 24 × 24 zonas y villas y ciudades fundadas aparte, el mapa del mundo se lle
   mucho sitio y con 1,4 el mundo pasaba del millón en el año 90). Medido con la simulación rápida:
   600.000 personas en el año 90, con 9 ciudades, 41 villas y 80 pueblos.
 
+### Un solo mapa (3.4)
+
+El mundo es un solo mapa de 48 × 48 zonas de 96 × 72 casillas (4.608 × 3.456 casillas). Por él
+se mueve la cámara de la web:
+
+- Cada asentamiento sabe en qué casilla del mundo empieza su mapa (`Mundo.origen`): un pueblo,
+  villa o ciudad llena sus zonas y una aldea va centrada en la suya.
+- `GET /api/zona?x=&y=`: quién ocupa la zona y, en las vacías y alrededor de las aldeas, su
+  terreno de relleno (`mundo/relleno.py`): bosque en manchas que siguen de una zona a otra, claros,
+  alguna charca y los caminos entre asentamientos unidos, de centro a centro. Sale de la semilla y
+  de la posición, así que una zona se ve siempre igual. Se guarda en memoria (hasta 400 zonas).
+- `GET /api/mapa` da además `origen`, el tamaño del mundo y el de una zona.
+- `GET /api/vistazo?ids=`: el estado de hasta 8 asentamientos a la vez, para los vecinos.
+- En la web (`web/src/mapa/vecindad.js`), la escena principal dibuja con detalle el asentamiento
+  que se sigue (con su websocket). Alrededor carga las zonas que se ven y una más, y suelta las
+  que quedan a más de 3: el relleno se pinta una vez en una imagen a media resolución y cada
+  vecino es una escena «embebida» que comparte la aplicación de PixiJS, con su gente moviéndose
+  (su estado se pide cada 3 segundos). La noche de la principal cubre a todos.
+- La cámara llega a todo el mundo y se aleja hasta 0,15. Pulsar en un vecino entra en él sin mover
+  la vista (`camaraPendiente`).
+
 ### Cómo quedó en pueblos, villas y ciudades
 
 - Código: `jevmura/mundo/sociedad.py` (oro, edificios nuevos, avances, sociedad, sucesos y

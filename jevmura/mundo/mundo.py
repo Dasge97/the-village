@@ -34,6 +34,8 @@ from .grande import Grande, al, del_, el
 from .grande import nuevo as nuevo_grande
 from .presupuesto import DecisorConPresupuesto, Presupuesto
 from .relaciones import RIVALIDAD, Relaciones, par
+from .relleno import relleno
+from ..motor.formatos import ZONA
 
 SEGUNDA = "Aldea del río"
 SEMILLA_POR_ID = 7777          # la aldea n usa la semilla del mundo + 7777 × (n − 1)
@@ -112,6 +114,7 @@ class Mundo(Relaciones):
         self.gasto: dict[str, dict] = {}        # por día real: llamadas a Jev y coste
         self._visto_jev: tuple[int, float] | None = None   # totales de Jev la última vez que se contó el gasto
         self.arrancado = time.time()
+        self._rellenos: dict = {}               # terreno de las zonas vacías ya calculado, para la web
         self.guardado_en: float | None = None   # hora real del último guardado
         self.ms_por_turno = 0.0                 # lo que tarda en calcularse un turno (media)
         self._turnos_reales: list[float] = []   # cuándo acabaron los últimos turnos, para medir la velocidad real
@@ -259,6 +262,48 @@ class Mundo(Relaciones):
     def dist(self, i: int, j: int) -> int:
         """Zonas entre dos asentamientos, contando su tamaño."""
         return distancia(self.meta[i]["zona"], self.meta[j]["zona"], self.huella(i), self.huella(j))
+
+    # ---- el mundo como un solo mapa (para la web) ----
+
+    def origen(self, id: int) -> tuple[int, int]:
+        """Casilla del mundo donde empieza el mapa del asentamiento. Un pueblo, villa o ciudad llena
+        sus zonas; una aldea, más pequeña, va centrada en la suya."""
+        zx, zy = self.meta[id]["zona"]
+        if id in self.aldeas:
+            mp = self.aldeas[id].mapa
+            return zx * ZONA[0] + (ZONA[0] - len(mp.casillas[0])) // 2, zy * ZONA[1] + (ZONA[1] - len(mp.casillas)) // 2
+        return zx * ZONA[0], zy * ZONA[1]
+
+    def _centro_casillas(self, id: int) -> tuple[float, float]:
+        zx, zy = self.meta[id]["zona"]
+        h = self.huella(id)
+        return (zx + h / 2) * ZONA[0], (zy + h / 2) * ZONA[1]
+
+    def zona_web(self, zx: int, zy: int) -> dict:
+        """Lo que hay en una zona del mundo: el asentamiento que la ocupa (la web pide su mapa aparte)
+        y, si hace falta, el terreno de relleno: en las zonas vacías y alrededor de las aldeas."""
+        if not (0 <= zx < zonas.LADO and 0 <= zy < zonas.LADO):
+            return {"zona": [zx, zy], "fuera": True}
+        id = self.zonas_ocupadas().get((zx, zy))
+        if id is not None and id not in self.aldeas:
+            return {"zona": [zx, zy], "asentamiento": id}
+        hueco = None
+        if id is not None:
+            ox, oy = self.origen(id)
+            mp = self.aldeas[id].mapa
+            hueco = (ox - zx * ZONA[0], oy - zy * ZONA[1], ox - zx * ZONA[0] + len(mp.casillas[0]), oy - zy * ZONA[1] + len(mp.casillas))
+        clave = (zx, zy, len(self.meta), id)
+        guardado = self._rellenos.get((zx, zy))
+        if guardado and guardado[0] == clave:
+            datos = guardado[1]
+        else:
+            caminos = [(self._centro_casillas(a), self._centro_casillas(b)) for a, b in self._caminos()]
+            semilla = self.aldeas[1].semilla
+            datos = relleno(semilla, zx, zy, zonas.bioma(semilla, zx, zy), caminos, hueco)
+            if len(self._rellenos) > 400:
+                self._rellenos.clear()
+            self._rellenos[(zx, zy)] = (clave, datos)
+        return {"zona": [zx, zy], "asentamiento": id, "relleno": datos}
 
     def dist_zona(self, i: int, zona) -> int:
         return distancia(self.meta[i]["zona"], zona, self.huella(i), 1)
@@ -530,7 +575,8 @@ class Mundo(Relaciones):
         a ciudad (3 × 3); una ciudad llena, a 4 × 4. Absorbe a los pueblos y villas que vivían en esas
         zonas. Las aldeas no se absorben: si hay una en medio, se busca otro lado."""
         for de, a, lado, lleno in ASCENSOS:
-            candidatos = sorted((i for i, g in self.grandes.items() if g.tipo == de and g.huella == lado - 1
+            # `huella < lado`: las villas y ciudades de antes de la 3.3 ocupan una sola zona y también crecen.
+            candidatos = sorted((i for i, g in self.grandes.items() if g.tipo == de and g.huella < lado
                                  and g.poblacion >= lleno * g.tope), key=lambda i: -self.grandes[i].poblacion)
             for id in candidatos:
                 if id in self.grandes:

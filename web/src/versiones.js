@@ -3,6 +3,18 @@
 
 export const VERSIONES = [
   {
+    version: "3.4",
+    fecha: "25-10-2026",
+    titulo: "Un solo mapa",
+    cambios: [
+      "El mundo entero es un solo mapa. Aleja la vista o arrastra más allá de los árboles y verás los asentamientos de al lado, con su gente moviéndose.",
+      "Entre un asentamiento y otro hay bosque, pradera, charcas y los caminos que los unen.",
+      "Pulsa en otro asentamiento para entrar en él: la vista se queda en el mismo sitio.",
+      "Solo se carga lo que tienes cerca, así que puedes recorrer el mundo sin que la web se haga pesada.",
+      "Las villas y ciudades de antes de la 3.3 también pueden crecer.",
+    ],
+  },
+  {
     version: "3.3",
     fecha: "25-10-2026",
     titulo: "Ciudades de verdad",

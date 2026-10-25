@@ -11,6 +11,7 @@ import { Clima, Luces, climaDe } from "./efectos.js";
 import { iconoDeAccion } from "./iconos.js";
 import { Ataques } from "./monstruos.js";
 import { Multitud } from "./multitud.js";
+import { Vecindad, camaraPendiente } from "./vecindad.js";
 
 TextureStyle.defaultOptions.scaleMode = "nearest";
 
@@ -40,11 +41,20 @@ function oscuridad(hora) {
   return 0;
 }
 
+// La escena dibuja un asentamiento. La principal tiene su propia aplicación de PixiJS, la cámara y
+// el minimapa, y alrededor carga el resto del mundo (ver vecindad.js). Los vecinos que se ven son
+// escenas «embebidas»: comparten la aplicación de la principal y dibujan dentro de un contenedor
+// suyo, sin cámara, sin minimapa, sin clima y sin noche propia (los cubre la de la principal).
 export class Escena {
-  constructor(elemento, { alSeleccionar, alDejarDeSeguir } = {}) {
+  constructor(elemento, { alSeleccionar, alDejarDeSeguir, alEntrar, app, contenedor, capaLuces } = {}) {
     this.elemento = elemento;
     this.alSeleccionar = alSeleccionar || (() => {});
     this.alDejarDeSeguir = alDejarDeSeguir || (() => {});
+    this.alEntrar = alEntrar || (() => {});
+    this.embebida = !!app;
+    this.appCompartida = app;
+    this.contenedor = contenedor;
+    this.capaLuces = capaLuces;
     this.texturas = new Map();
     this.habitantes = new Map();
     this.casas = new Map();
@@ -55,18 +65,27 @@ export class Escena {
     this.mapa = mapa;
     this.bioma = mapa.bioma ?? "pradera";
     this.suelo = A.suelo(this.bioma);
-    this.app = new Application();
-    await this.app.init({ resizeTo: this.elemento, backgroundAlpha: 0, antialias: false, roundPixels: true });
+    if (this.embebida) {
+      this.app = this.appCompartida;
+    } else {
+      this.app = new Application();
+      await this.app.init({ resizeTo: this.elemento, backgroundAlpha: 0, antialias: false, roundPixels: true });
+    }
     this.listo = true;
     if (this.destruido) { this._cerrar(); return; }
-    this.elemento.appendChild(this.app.canvas);
+    if (!this.embebida) this.elemento.appendChild(this.app.canvas);
 
     await Assets.load([...Object.values(A.IMAGENES), ...Object.values(A.ICONOS)]);
     if (this.destruido) { this._cerrar(); return; }
     this.imagenes = Object.fromEntries(Object.entries(A.IMAGENES).map(([k, url]) => [k, Assets.get(url)]));
 
     this.mundo = new Container();
-    this.app.stage.addChild(this.mundo);
+    (this.embebida ? this.contenedor : this.app.stage).addChild(this.mundo);
+    // Debajo de todo, el resto del mundo: el terreno de las zonas de alrededor y los vecinos.
+    if (!this.embebida) {
+      this.fondo = new Container();
+      this.mundo.addChild(this.fondo);
+    }
     this._marcarOcupadas();
     this._dibujarSuelo();
     this.ondas = new Container();
@@ -76,10 +95,11 @@ export class Escena {
     this.rocas = new Container();
     this.objetos = new Container();
     this.objetos.sortableChildren = true;
-    this.noche = new Graphics().rect(0, 0, mapa.ancho * C, mapa.alto * C).fill(0x0b1235);
+    // La noche cubre todo el mundo que se ve, también a los vecinos (las embebidas no tienen).
+    this.noche = new Graphics().rect(-1e6, -1e6, 2e6, 2e6).fill(0x0b1235);
     this.noche.alpha = 0;
-    // Los árboles del borde sobresalen del mapa; se recortan para que la noche lo cubra todo.
-    const recorte = new Graphics().rect(0, 0, mapa.ancho * C, mapa.alto * C).fill(0xffffff);
+    this.noche.visible = !this.embebida;
+    this.lucesVecinos = new Container();
     // Por encima de la noche: la luz de las ventanas y los iconos de lo que hace cada uno.
     this.luces = new Luces(this._lucesFijas());
     this.iconos = new Container();
@@ -87,13 +107,14 @@ export class Escena {
     const capaAtaque = new Container();
     capaAtaque.sortableChildren = true;
     this.ataques = new Ataques(mapa, capaAtaque);
-    this.mundo.addChild(this.cultivos, this.rocas, this.objetos, this.noche, this.luces.contenedor,
-      capaAtaque, this.ataques.efectos, this.iconos, recorte);
-    this.mundo.mask = recorte;
+    this.mundo.addChild(this.cultivos, this.rocas, this.objetos, this.noche, this.lucesVecinos,
+      this.embebida ? new Container() : this.luces.contenedor, capaAtaque, this.ataques.efectos, this.iconos);
+    // Las luces de una embebida van por encima de la noche de la principal.
+    if (this.embebida) this.capaLuces.addChild(this.luces.contenedor);
     this._dibujarFijos();
     this.multitud = new Multitud(this);
     this.clima = new Clima();
-    this.app.stage.addChild(this.clima.contenedor);
+    if (!this.embebida) this.app.stage.addChild(this.clima.contenedor);
 
     this.etiqueta = new Text({ text: "", style: { fontFamily: "Inter, sans-serif", fontSize: 24, fill: 0xffffff,
       stroke: { color: 0x1a1208, width: 5 }, fontWeight: "600" } });
@@ -110,9 +131,12 @@ export class Escena {
     this.marcado = null;
     this.siguiendo = false;
 
-    this.app.ticker.add(() => this._animar());
+    this._tic = () => this._animar();
+    this.app.ticker.add(this._tic);
+    if (this.embebida) return;
     this._prepararCamara();
     this._crearMinimapa();
+    this.vecindad = new Vecindad(this);
     this._observador = new ResizeObserver(() => this._encajar());
     this._observador.observe(this.elemento);
     this._encajar();
@@ -125,6 +149,12 @@ export class Escena {
   _prepararCamara() {
     const [ax, ay] = this.mapa.almacen;
     this.camara = { x: (ax + 0.5) * C, y: (ay + 0.5) * C, zoom: null };
+    // Si se llega pulsando un vecino en el mapa continuo, la cámara se queda donde estaba.
+    const p = camaraPendiente.valor;
+    if (p && this.mapa.origen) {
+      this.camara = { x: p.x - this.mapa.origen[0] * C, y: p.y - this.mapa.origen[1] * C, zoom: p.zoom };
+      camaraPendiente.valor = null;
+    }
     const lienzo = this.app.canvas;
     lienzo.style.touchAction = "none";
     const punteros = new Map();
@@ -139,7 +169,16 @@ export class Escena {
     this.app.stage.hitArea = this.app.screen;
     this.app.stage.on("pointertap", (e) => {
       if (this.arrastrado || this.enMinimapa) return;
-      this.alSeleccionar(this._habitanteEn(e.client.x, e.client.y));
+      const id = this._habitanteEn(e.client.x, e.client.y);
+      // Sin nadie debajo, pulsar en otro asentamiento del mapa continuo lleva a él.
+      const otro = id === null ? this.vecindad?.asentamientoEn(...this._aMundo(e.client.x, e.client.y)) : null;
+      if (otro != null) {
+        camaraPendiente.valor = { x: this.camara.x + this.mapa.origen[0] * C, y: this.camara.y + this.mapa.origen[1] * C,
+          zoom: this.camara.zoom };
+        this.alEntrar(otro);
+        return;
+      }
+      this.alSeleccionar(id);
     });
     // Al pasar el ratón por encima de alguien se ve su nombre y el cursor cambia.
     lienzo.addEventListener("pointermove", (e) => {
@@ -190,10 +229,24 @@ export class Escena {
   }
 
   // El mapa siempre llena la caja, aunque al alejarlo del todo se recorte un poco por un lado.
+  // Se puede alejar hasta ver varias zonas del mundo (no más: habría que cargar demasiadas).
   _zoomMinimo() {
-    const W = this.mapa.ancho * C;
-    const H = this.mapa.alto * C;
-    return Math.max(this.elemento.clientWidth / W, this.elemento.clientHeight / H);
+    if (!this.mapa.mundo) {
+      return Math.max(this.elemento.clientWidth / (this.mapa.ancho * C), this.elemento.clientHeight / (this.mapa.alto * C));
+    }
+    return 0.15;
+  }
+
+  // Zoom para ver entero el asentamiento principal.
+  _zoomTodo() {
+    return Math.min(this.elemento.clientWidth / (this.mapa.ancho * C), this.elemento.clientHeight / (this.mapa.alto * C));
+  }
+
+  // Un punto de la pantalla en píxeles del mundo de esta escena (los de su mapa).
+  _aMundo(clienteX, clienteY) {
+    const caja = this.app.canvas.getBoundingClientRect();
+    const z = this.camara.zoom;
+    return [(clienteX - caja.left - this.mundo.x) / z, (clienteY - caja.top - this.mundo.y) / z];
   }
 
   // Cambia el zoom manteniendo quieto el punto de la pantalla que está bajo el cursor.
@@ -221,7 +274,7 @@ export class Escena {
   acercar() { this._zoomEn(this.camara.zoom * 1.5, ...this._centroPantalla()); }
   alejar() { this._zoomEn(this.camara.zoom / 1.5, ...this._centroPantalla()); }
   verTodo() {
-    this.camara.zoom = this._zoomMinimo();
+    this.camara.zoom = Math.max(this._zoomMinimo(), this._zoomTodo());
     this.camara.x = (this.mapa.ancho * C) / 2;
     this.camara.y = (this.mapa.alto * C) / 2;
     this._aplicarCamara();
@@ -235,18 +288,20 @@ export class Escena {
   _aplicarCamara() {
     const w = this.elemento.clientWidth;
     const h = this.elemento.clientHeight;
-    const W = this.mapa.ancho * C;
-    const H = this.mapa.alto * C;
     const z = this.camara.zoom;
-    // Si el mapa es más grande que la pantalla, la cámara no deja ver fuera de él; si es más
-    // pequeño, queda centrado.
+    // La cámara no deja salir del mundo (con el mapa continuo) o del mapa (sin él).
+    const [ox, oy] = this.mapa.origen ?? [0, 0];
+    const [MW, MH] = this.mapa.mundo ?? [this.mapa.ancho, this.mapa.alto];
+    const x0 = -ox * C; const x1 = (MW - ox) * C;
+    const y0 = -oy * C; const y1 = (MH - oy) * C;
     const mitadW = w / 2 / z;
     const mitadH = h / 2 / z;
-    this.camara.x = W <= 2 * mitadW ? W / 2 : Math.max(mitadW, Math.min(W - mitadW, this.camara.x));
-    this.camara.y = H <= 2 * mitadH ? H / 2 : Math.max(mitadH, Math.min(H - mitadH, this.camara.y));
+    this.camara.x = x1 - x0 <= 2 * mitadW ? (x0 + x1) / 2 : Math.max(x0 + mitadW, Math.min(x1 - mitadW, this.camara.x));
+    this.camara.y = y1 - y0 <= 2 * mitadH ? (y0 + y1) / 2 : Math.max(y0 + mitadH, Math.min(y1 - mitadH, this.camara.y));
     this.mundo.scale.set(z);
     this.mundo.position.set(Math.round(w / 2 - this.camara.x * z), Math.round(h / 2 - this.camara.y * z));
     this._colocarMinimapa();
+    this.vecindad?.alMover();
   }
 
   // Si se destruye mientras PixiJS aún arranca (al cambiar de asentamiento enseguida), se espera a
@@ -254,12 +309,19 @@ export class Escena {
   destruir() {
     this.destruido = true;
     this._observador?.disconnect();
+    this.vecindad?.destruir();
     if (this.listo) this._cerrar();
   }
 
   _cerrar() {
     if (this.cerrado) return;
     this.cerrado = true;
+    if (this.embebida) {
+      this.app.ticker.remove(this._tic);
+      this.luces?.contenedor.destroy({ children: true });
+      this.mundo?.destroy({ children: true });
+      return;
+    }
     this.app.destroy(true, { children: true });
   }
 
@@ -532,7 +594,9 @@ export class Escena {
     // La primera vez, doble tamaño en pantallas grandes y tamaño real en el móvil (o el que haga
     // falta para llenar la pantalla).
     if (this.camara.zoom === null) {
-      this.camara.zoom = Math.max(this.elemento.clientWidth < 600 ? 1 : 2, this._zoomMinimo());
+      // Un asentamiento grande se ve al principio entero o casi; uno pequeño, a doble tamaño.
+      this.camara.zoom = Math.max(Math.min(this.elemento.clientWidth < 600 ? 1 : 2, Math.max(this._zoomTodo(), 0.5)),
+        this._zoomMinimo());
     }
     this.camara.zoom = Math.max(this.camara.zoom, this._zoomMinimo());
     this._aplicarCamara();
@@ -623,14 +687,14 @@ export class Escena {
     const faroles = (estado.evolucion?.faroles ?? []).map(([x, y], k) => ({ id: `farol${k}`, x, y: y - 1 }));
     this.luces.actualizar([...estado.casas, ...faroles], oscuro);
     this.ataques.actualizar(estado.ataque, estado);
-    this.clima.poner(clima, this.elemento.clientWidth, this.elemento.clientHeight);
+    if (!this.embebida) this.clima.poner(clima, this.elemento.clientWidth, this.elemento.clientHeight);
     this._actualizarArboles(estado);
     this._actualizarCultivos(estado.estacion);
     this._actualizarCasas(estado);
     this._actualizarMuralla(estado);
     this._actualizarEvolucion(estado.evolucion);
     await this._actualizarHabitantes(estado);
-    this._actualizarMinimapa(estado);
+    if (!this.embebida) this._actualizarMinimapa(estado);
   }
 
   _actualizarArboles(estado) {
@@ -846,7 +910,7 @@ export class Escena {
 
   _animar() {
     const ahora = performance.now();
-    this.clima.animar(this.camara.zoom);
+    if (!this.embebida) this.clima.animar(this.camara.zoom);
     this.ataques.animar(ahora);
     this.multitud.animar(ahora);
     for (const p of this.habitantes.values()) {

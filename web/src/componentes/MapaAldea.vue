@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icono from "./Icono.vue";
 import { Escena } from "../mapa/escena.js";
+import { cambiarAldea } from "../ruta.js";
 
 const props = defineProps({ mapa: Object, aldea: Object, seleccionado: Number, siguiendo: Boolean, pequeno: Boolean,
   panelAbierto: Boolean });
@@ -14,6 +15,7 @@ onMounted(async () => {
   escena = new Escena(lienzo.value, {
     alSeleccionar: (id) => emit("seleccionar", id),
     alDejarDeSeguir: () => emit("dejarDeSeguir"),
+    alEntrar: (id) => cambiarAldea(id),        // pulsar otro asentamiento en el mapa continuo
   });
   await escena.iniciar(props.mapa);
   if (escena.destruido) return;          // se cambió de asentamiento mientras cargaba

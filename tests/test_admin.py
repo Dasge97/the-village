@@ -60,3 +60,19 @@ def test_los_ajustes_cambian_el_mundo_y_se_guardan(tmp_path, monkeypatch):
     assert c.get("/api/estado").json()["segundos_por_turno"] == 1.0
     otro = Mundo(str(tmp_path / "mundo.db"), semilla=3, segundos_por_turno=0)
     assert otro.ajustes == {"velocidad": 10, "pausado": True, "usd_dia": 0.1, "jev": False}
+
+
+def test_el_mapa_continuo_da_zonas_mapas_con_origen_y_vecinos(tmp_path, monkeypatch):
+    mundo, c = cliente(tmp_path, monkeypatch)
+    x, y = mundo.meta[1]["zona"]
+    p = mundo.fundar_grande("pueblo", (x, y), [25] * 100, [1])
+    mapa = c.get("/api/mapa?aldea=1").json()
+    assert mapa["origen"] == list(mundo.origen(1)) and mapa["mundo"] == [48 * 96, 48 * 72]
+    propia = c.get(f"/api/zona?x={x}&y={y}").json()
+    assert propia["asentamiento"] == 1 and len(propia["relleno"]["casillas"]) == 72
+    px, py = mundo.meta[p]["zona"]
+    del_pueblo = c.get(f"/api/zona?x={px}&y={py}").json()
+    assert del_pueblo["asentamiento"] == p and "relleno" not in del_pueblo
+    assert c.get("/api/zona?x=-1&y=0").json()["fuera"]
+    vistazo = c.get(f"/api/vistazo?ids=1,{p}").json()
+    assert set(vistazo) == {"1", str(p)} and vistazo[str(p)]["poblacion"] == 100

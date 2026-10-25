@@ -81,6 +81,14 @@ def crear_app(mundo: Mundo) -> FastAPI:
         return {**estado_de(a), "segundos_por_turno": max(0.15, mundo.segundos_por_turno),
                 "pausado": mundo.ajustes["pausado"], "mundo": mundo.resumen(), **extra}
 
+    def mapa_web(n: int) -> dict:
+        """El mapa de un asentamiento y dónde está en el mundo (en casillas), para el mapa continuo."""
+        from .motor.formatos import ZONA
+        from .mundo import zonas
+        a = mundo.asentamiento(n)
+        return {**mapa_publico(a), "id": n, "origen": list(mundo.origen(n)),
+                "mundo": [zonas.LADO * ZONA[0], zonas.LADO * ZONA[1]], "zona_casillas": list(ZONA)}
+
     def elegir(n: int):
         a = mundo.asentamiento(n)
         if a is None:
@@ -126,7 +134,22 @@ def crear_app(mundo: Mundo) -> FastAPI:
 
     @app.get("/api/mapa")
     def mapa(aldea: int = 1) -> dict:
-        return mapa_publico(elegir(aldea))
+        with mundo.cerrojo:
+            elegir(aldea)
+            return mapa_web(aldea)
+
+    @app.get("/api/zona")
+    def zona(x: int, y: int) -> dict:
+        """Una zona del mapa continuo: su terreno y quién la ocupa."""
+        with mundo.cerrojo:
+            return mundo.zona_web(x, y)
+
+    @app.get("/api/vistazo")
+    def vistazo(ids: str) -> dict:
+        """El estado de varios asentamientos a la vez: los vecinos que se ven en el mapa continuo."""
+        lista = [int(i) for i in ids.split(",") if i.strip().isdigit()][:8]
+        with mundo.cerrojo:
+            return {str(i): estado_de(mundo.asentamiento(i)) for i in lista if mundo.asentamiento(i) is not None}
 
     @app.get("/api/estado")
     def estado(aldea: int = 1) -> dict:
@@ -181,7 +204,7 @@ def crear_app(mundo: Mundo) -> FastAPI:
         n = aldea if mundo.asentamiento(aldea) is not None else 1
         with mundo.cerrojo:
             a = mundo.asentamiento(n)
-            inicio = {"tipo": "inicio", "aldea": n, "mapa": mapa_publico(a), "estado": estado_web(a)}
+            inicio = {"tipo": "inicio", "aldea": n, "mapa": mapa_web(n), "estado": estado_web(a)}
         await websocket.send_json(inicio)
         clientes[websocket] = n
         vigilar()
