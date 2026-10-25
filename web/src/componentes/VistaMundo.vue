@@ -34,6 +34,8 @@ const ICONO = {
   aldea: [0, 0, 64, 48], pueblo: [256, 0, 48, 48], villa: [304, 0, 64, 48], ciudad: [400, 112, 64, 112],
 };
 const numero = (n) => n.toLocaleString("es-ES");
+// Colores de las líneas de relación sobre el mapa (los caminos son de tierra, #c79a58).
+const RELACION = { alianza: "#2f8f5b", tributo: "#e0b030", rivalidad: "#c2412d" };
 const TEXTO_TIPO = { aldea: "Aldea", pueblo: "Pueblo", villa: "Villa", ciudad: "Ciudad" };
 const casas = new Image();
 casas.src = "/sprites/Backgrounds/Tilesets/TilesetHouse.png";
@@ -127,6 +129,19 @@ function dibujar() {
     g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
   }
   g.setLineDash([]);
+  // Relaciones entre pueblos, villas y ciudades: alianzas, tributos y rivalidades.
+  const linea = (a, b, color, ancho, raya) => {
+    const p = porId.get(a); const q = porId.get(b);
+    if (!p || !q) return;
+    const [ax, ay] = aPantalla(p.zona[0] + 0.5, p.zona[1] + 0.5);
+    const [bx, by] = aPantalla(q.zona[0] + 0.5, q.zona[1] + 0.5);
+    g.strokeStyle = color; g.lineWidth = ancho; g.setLineDash(raya);
+    g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+  };
+  for (const [a, b] of d.alianzas ?? []) linea(a, b, RELACION.alianza, Math.max(2, 2.5 * vista.zoom), []);
+  for (const [a, b] of d.vasallos ?? []) linea(a, b, RELACION.tributo, Math.max(2, 2 * vista.zoom), [2 * vista.zoom, 3 * vista.zoom]);
+  for (const [a, b] of d.rivalidades ?? []) linea(a, b, RELACION.rivalidad, Math.max(1.5, 1.5 * vista.zoom), [5 * vista.zoom, 4 * vista.zoom]);
+  g.setLineDash([]);
   // Asentamientos: icono, nombre y población.
   for (const a of d.asentamientos) {
     const [cx, cy] = aPantalla(a.zona[0] + 0.5, a.zona[1] + 0.5);
@@ -184,7 +199,7 @@ let reloj;
 let observador;
 onMounted(() => {
   cargar();
-  reloj = setInterval(cargar, 30000);
+  reloj = setInterval(cargar, 5000);
   observador = new ResizeObserver(() => dibujar());
   observador.observe(caja.value);
 });
@@ -236,6 +251,12 @@ const cuentas = computed(() => {
       <p class="tipos numero">
         <template v-for="(n, tipo) in cuentas" :key="tipo"><span v-if="n">{{ n }} {{ TEXTO_TIPO[tipo].toLowerCase() }}{{ n > 1 ? (tipo === "ciudad" ? "es" : "s") : "" }}</span></template>
       </p>
+      <ul class="leyenda" aria-label="Leyenda del mapa">
+        <li><span class="raya camino"></span>Camino</li>
+        <li><span class="raya" :style="{ background: RELACION.alianza }"></span>Alianza</li>
+        <li><span class="raya punteada" :style="{ color: RELACION.tributo }"></span>Tributo</li>
+        <li><span class="raya punteada" :style="{ color: RELACION.rivalidad }"></span>Rivalidad</li>
+      </ul>
       <Subpestanas :opciones="opciones" :activa="pestana" etiqueta="Partes del resumen del mundo" @elegir="irPestana" />
       <ul v-if="pestana === 'asentamientos'" class="lista">
         <li v-for="a in lista" :key="a.id">
@@ -292,6 +313,11 @@ h3 { margin-top: var(--space-2); font-size: var(--text-xs); font-weight: 600; le
 .momentos li { display: flex; flex-direction: column; }
 .ano { font-size: var(--text-xs); color: var(--color-text-muted); }
 .vacia { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.leyenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-xs); color: var(--color-text-muted); }
+.leyenda li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.raya { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+.raya.camino { background: repeating-linear-gradient(90deg, #c79a58 0 6px, transparent 6px 9px); }
+.raya.punteada { background: repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 6px); }
 @media (max-width: 960px) {
   .mundo { grid-template-columns: 1fr; height: auto; }
   .lienzo-caja { height: 60vh; }

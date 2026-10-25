@@ -78,7 +78,7 @@ export const anoDelTurno = (turno) => Math.floor(turno / (TURNOS_POR_DIA * DIAS_
 // Grupos de sucesos de la crónica, con su icono. Cada tipo del motor va a un grupo.
 export const GRUPOS_SUCESO = [
   { id: "vida", texto: "Vida", icono: "corazon", tipos: ["nacimiento", "muerte", "pareja", "rechazo", "forastero", "colono", "marcha"] },
-  { id: "obras", texto: "Obras", icono: "casa", tipos: ["casa", "muralla", "oficio"] },
+  { id: "obras", texto: "Obras", icono: "casa", tipos: ["casa", "muralla", "oficio", "obra", "etapa", "consejo", "fiesta", "caravana"] },
   { id: "peligros", texto: "Peligros", icono: "alerta", tipos: ["ataque", "incendio", "robo", "enfermedad", "sequia", "frio", "discusion"] },
   { id: "fuera", texto: "Fuera", icono: "brujula", tipos: ["explora", "hallazgo"] },
 ];

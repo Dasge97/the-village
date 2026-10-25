@@ -583,22 +583,26 @@ export class Escena {
     const clima = climaDe(estado);
     const oscuro = oscuridad(estado.hora);
     this.noche.alpha = Math.max(oscuro, { lluvia: 0.16, nieve: 0.08 }[clima] ?? 0);
-    this.luces.actualizar(estado.casas, oscuro);
+    const faroles = (estado.evolucion?.faroles ?? []).map(([x, y], k) => ({ id: `farol${k}`, x, y: y - 1 }));
+    this.luces.actualizar([...estado.casas, ...faroles], oscuro);
     this.ataques.actualizar(estado.ataque, estado);
     this.clima.poner(clima, this.elemento.clientWidth, this.elemento.clientHeight);
     this._actualizarArboles(estado);
     this._actualizarCultivos(estado.estacion);
     this._actualizarCasas(estado);
     this._actualizarMuralla(estado);
+    this._actualizarEvolucion(estado.evolucion);
     await this._actualizarHabitantes(estado);
     this._actualizarMinimapa(estado);
   }
 
   _actualizarArboles(estado) {
     const cortados = estado.arboles_cortados;
+    const quitados = new Set(estado.evolucion?.arboles_quitados ?? []);
     const e = this.bioma === "nieve" ? "invierno" : estado.estacion;   // en la nieve, siempre nevados
     for (let i = 0; i < this.arboles.length; i++) {
       const a = this.arboles[i];
+      a.sprite.visible = !quitados.has(i);
       const crecido = cortados[i] ?? 1;
       let pieza;
       let tinte = 0xffffff;
@@ -641,8 +645,9 @@ export class Escena {
     const vistas = new Set();
     for (const c of estado.casas) {
       vistas.add(c.id);
-      const [imagen, recorte] = A.EDIFICIOS[c.modelo] ?? ["casas", A.CASAS[c.id % A.CASAS.length]];
-      const clave = `${c.modelo ?? "casa"}:${c.x},${c.y}`;
+      let [imagen, recorte] = A.EDIFICIOS[c.modelo] ?? ["casas", A.CASAS[c.id % A.CASAS.length]];
+      if (c.modelo === "vigia" && c.estado != null && c.estado < 50) recorte = A.VIGIA_GASTADA[c.estado > 0 ? 0 : 1];
+      const clave = `${c.modelo ?? "casa"}:${c.x},${c.y}:${recorte}`;
       let s = this.casas.get(c.id);
       if (!s) {
         s = this._objeto(this._recorte(imagen, recorte), c.x, c.y);
@@ -654,8 +659,11 @@ export class Escena {
       }
       s.clave = clave;
       s.visible = true;
-      s.tint = c.quemada ? 0x4a4038 : 0xffffff;
-      s.alpha = c.quemada ? 0.75 : 1;
+      // Quemada o en ruinas, oscura; estropeada, apagada; de piedra, gris.
+      const ruinas = c.quemada || c.estado === 0;
+      s.tint = ruinas ? A.TINTE_RUINAS : c.estado != null && c.estado < 50 ? A.TINTE_ESTROPEADO
+        : c.modelo === "casa_piedra" ? A.TINTE_PIEDRA : A.TINTE_MODELO[c.modelo] ?? 0xffffff;
+      s.alpha = ruinas ? 0.75 : 1;
     }
     for (const [id, s] of this.casas) if (!vistas.has(id)) s.visible = false;   // p. ej., una casa quemada del todo
     this.multitud?.poner(estado.multitud ?? 0);
@@ -664,6 +672,10 @@ export class Escena {
     if (this.obra.visible) {
       // La casa en obra se dibuja con el mismo modelo que tendrá al acabarse.
       if (o.tipo === "casa") this.obra.texture = this._recorte("casas", A.CASAS[(estado.casas.length + 1) % A.CASAS.length]);
+      else if (o.modelo && A.EDIFICIOS[o.modelo]) this.obra.texture = this._recorte(...A.EDIFICIOS[o.modelo]);
+      // Una reparación o una casa de piedra se ven sobre lo que ya hay: no hace falta el fantasma.
+      if (o.tipo === "reparar" || o.tipo === "casa_piedra" || o.tipo === "reforzar" || o.tipo === "faroles"
+          || (o.tipo === "edificio" && !o.modelo)) this.obra.visible = false;
       this.obra.position.set((o.x + 0.5) * C, (o.y + 1) * C);
       this.obra.zIndex = (o.y + 1) * C;
       this.obra.alpha = 0.25 + 0.5 * (o.progreso / o.total);
@@ -676,10 +688,30 @@ export class Escena {
       const hecho = k < estado.muralla;
       const obra = enObra && k === estado.muralla;
       for (const s of sprites) {
+        s.tint = k < (estado.evolucion?.reforzados ?? 0) ? A.TINTE_REFORZADO : 0xffffff;
         s.visible = hecho || !!obra;
         s.alpha = hecho ? 1 : 0.25 + 0.5 * (obra ? enObra.progreso / enObra.total : 0);
       }
     });
+  }
+
+  // Faroles junto a las puertas y huertos nuevos junto a los campos (evolución de la aldea).
+  _actualizarEvolucion(evo) {
+    if (!evo) return;
+    this.faroles ??= [];
+    while (this.faroles.length < evo.faroles.length) {
+      const [x, y] = evo.faroles[this.faroles.length];
+      this.faroles.push(this._objeto(this._recorte("elementos", A.FAROL), x, y));
+    }
+    if (evo.huertos && !this.huertos) {
+      const [[x0, y0], [x1, y1]] = evo.huertos;
+      this.huertos = true;
+      for (let y = y0 + 1; y < y1; y += 2) {
+        for (let x = x0 + 1; x < x1; x++) this._poner(this.cultivos, this._recorte("naturaleza", A.CULTIVO), x, y);
+      }
+      this._vallar([[x0, y0], [x1, y1]], "casas", A.VALLA, () => true);
+      this.estacion = null;            // que los cultivos nuevos tomen el dibujo de la estación
+    }
   }
 
   async _texturasPersonaje(nombre) {

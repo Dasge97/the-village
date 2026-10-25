@@ -21,6 +21,7 @@ from collections import Counter
 from . import modelos as m
 from .decisores import Decision, Decisor, DecisorReglas, EstadoAldea, Opcion, Situacion
 from .caminos import Caminos
+from .evolucion import EDIFICIOS, ETAPAS, Evolucion, coste_obra
 from .mapa import generar_mapa
 from .modelos import Casa, Habitante, Obra, Persona, Suceso
 from .nombres import elegir_aspecto, elegir_nombre
@@ -71,7 +72,9 @@ def limitar(v: float) -> float:
     return 0.0 if v < 0 else 100.0 if v > 100 else v
 
 
-class Aldea:
+class Aldea(Evolucion):
+    ALMACEN_MAX = ALMACEN_MAX
+
     def __init__(self, semilla: int = 0, decisor: Decisor | None = None, habitantes: int = 8,
                  hora_inicial: float = 0, bioma: str = "pradera"):
         self.semilla = semilla
@@ -91,6 +94,7 @@ class Aldea:
         self.peces = PECES_MAX
         self.muralla = 0
         self.obra: Obra | None = None
+        self._iniciar_evolucion()
         self.relaciones: dict[tuple[int, int], float] = {}
         self.cronica: list[Suceso] = []
         self.resumenes: list[dict] = []
@@ -193,9 +197,9 @@ class Aldea:
         if h.enfermo_hasta > self.turno:
             salud -= 0.04
         if salud == 0.0 and h.hambre < 60:
-            salud = 0.06 if h.accion in ("dormir", "descansar") else 0.03
+            salud = (0.06 if h.accion in ("dormir", "descansar") else 0.03) * (1 + 0.5 * self.efecto("pozo"))
         h.salud = limitar(h.salud + salud)
-        h.animo += ((50 - h.animo) * 0.002 - (0.05 if h.hambre > 70 else 0.0)
+        h.animo += ((50 + 10 * self.efecto("templo") - h.animo) * 0.002 - (0.05 if h.hambre > 70 else 0.0)
                     - (CANSANCIO_TRABAJO if h.accion in ("trabajar", "construir") else 0.0))
         h.animo = limitar(h.animo)
 
@@ -278,7 +282,9 @@ class Aldea:
         # Si no llega para pagarla, falta quien saque madera o piedra (antes se pedía cantero solo
         # por debajo de 15 de piedra, y con 15-19 la muralla, que cuesta 20, no se empezaba nunca).
         pendiente = "casa" if falta_casa else "muralla" if self.muralla < m.TRAMOS_MURALLA else None
-        coste = m.OBRAS[pendiente] if pendiente else {"madera": 0, "piedra": 0}
+        siguiente = None if pendiente else self.obra_evolucion(pagar=False)
+        coste = (m.OBRAS[pendiente] if pendiente else self._coste_candidata(*siguiente) if siguiente
+                 else {"madera": 0, "piedra": 0})
         if self.madera < self._lena_necesaria() + coste["madera"]:
             necesarios.append("leñador")
         if self.piedra < coste["piedra"]:
@@ -286,14 +292,15 @@ class Aldea:
         obra = None
         if self.obra:
             obra = {"casa": "una casa nueva", "reconstruir": "reconstruir una casa quemada",
-                    "muralla": "un tramo de muralla"}[self.obra.tipo]
+                    "muralla": "un tramo de muralla"}.get(self.obra.tipo) or self.nombre_obra(self.obra)
         return EstadoAldea(
             poblacion=poblacion, comida=int(self.comida), madera=int(self.madera),
             piedra=int(self.piedra), dias_comida=round(dias_comida, 1),
             plazas_libres=self._plazas_libres(), oficios=dict(oficios),
             oficios_necesarios=tuple(necesarios), guardias_necesarios=guardias,
             llenos=tuple(r for r in ALMACEN_MAX if self._lleno(r)),
-            muralla=self.muralla, obra=obra,
+            muralla=self.muralla, obra=obra, etapa=f"{self.etapa}: {ETAPAS[self.etapa]}",
+            edificios=tuple(EDIFICIOS[n]["nombre"] for n in self.edificios),
         )
 
     def _opciones(self, h: Habitante, estado: EstadoAldea) -> list[Opcion]:
@@ -317,6 +324,9 @@ class Aldea:
         if obra == "seguir":
             ops.append(Opcion("construir", "construir",
                               f"Seguir construyendo {estado.obra}: si nadie construye, la obra no se termina"))
+        elif isinstance(obra, tuple):
+            tipo, cual = obra
+            ops.append(Opcion(f"construir:{tipo}:{cual}", "construir", self.texto_obra(tipo, cual)))
         elif obra:
             ops.append(Opcion(f"construir:{obra}", "construir", {
                 "casa": "Empezar una casa nueva: hace falta para que las familias tengan hijos",
@@ -383,8 +393,12 @@ class Aldea:
             h.cambio_oficio = self.turno
             self._poner(h, "trabajar", quien, d.motivo)
         elif o.tipo == "construir":
-            if o.id != "construir":
-                self._empezar_obra(o.id.split(":")[1])
+            partes = o.id.split(":")
+            if len(partes) == 2:
+                self._empezar_obra(partes[1])
+            elif len(partes) == 3:
+                cual = int(partes[2]) if partes[2].isdigit() else None if partes[2] == "None" else partes[2]
+                self.empezar_evolucion(partes[1], cual)
             self._poner(h, "construir", quien, d.motivo)
         elif o.tipo in ("hablar", "ayudar", "discutir", "proponer_pareja"):
             self._poner(h, o.tipo, quien, d.motivo, otro=o.otro)
@@ -427,7 +441,7 @@ class Aldea:
             return min(mapa.salidas, key=lambda s: math.dist(s, (h.x, h.y)))
         if accion == "trabajar":
             if h.oficio == "campesino":
-                return self.rng.choice(mapa.campos)
+                return self.rng.choice(self.campos_de_trabajo())
             if h.oficio == "pescador":
                 return self.rng.choice(mapa.orillas)
             if h.oficio == "cantero":
@@ -549,21 +563,24 @@ class Aldea:
     def _guardar(self, recurso: str, cantidad: float) -> float:
         """Mete un recurso en el almacén sin pasar del tope. Devuelve lo que ha cabido."""
         actual = getattr(self, recurso)
-        cabe = max(0.0, min(cantidad, ALMACEN_MAX[recurso] - actual))
+        cabe = max(0.0, min(cantidad, self.tope(recurso) - actual))
         setattr(self, recurso, actual + cabe)
         self.ano_en_curso["producido"][recurso] += cabe
         return cabe
 
     def _lleno(self, recurso: str) -> bool:
-        return getattr(self, recurso) >= ALMACEN_MAX[recurso]
+        return getattr(self, recurso) >= self.tope(recurso)
 
     def _trabajar(self, h: Habitante, oficio: str | None, factor: float) -> None:
         recurso = m.RECURSO_OFICIO.get(oficio or "")
         if recurso is None or self._lleno(recurso):
             return
         factor *= 0.6 + 0.8 * h.animo / 100        # con ánimo 50 se produce lo normal
+        if oficio in ("cantero", "leñador"):
+            factor *= 1 + 0.25 * self.efecto("taller")
         if oficio == "campesino":
-            self._guardar("comida", COSECHA[self.estacion] * (0.5 if self.sequia else 1.0) * factor)
+            self._guardar("comida", COSECHA[self.estacion] * (0.5 if self.sequia else 1.0) * factor
+                          * (1 + 0.3 * self.efecto("huertos")))
         elif oficio == "pescador":
             self.peces -= self._guardar("comida", min(PESCA * (2 if self.buena_pesca else 1) * factor, self.peces))
         elif oficio == "cantero":
@@ -628,9 +645,12 @@ class Aldea:
             return "reconstruir"
         if not quemada and self._falta_casa() and self._puede_pagar("casa"):
             return "casa"
-        if self.muralla < m.TRAMOS_MURALLA and self._puede_pagar("muralla") and self.madera > self._lena_necesaria():
-            return "muralla"
-        return None
+        if self.muralla < m.TRAMOS_MURALLA:
+            if self._puede_pagar("muralla") and self.madera > self._lena_necesaria():
+                return "muralla"
+            if self.etapa == 1:
+                return None
+        return self.obra_evolucion()
 
     def _puede_pagar(self, tipo: str) -> bool:
         coste = m.OBRAS[tipo]
@@ -655,10 +675,12 @@ class Aldea:
         if obra is None:
             return
         obra.progreso += 1
-        if obra.progreso < m.OBRAS[obra.tipo]["turnos"]:
+        if obra.progreso < coste_obra(obra)["turnos"]:
             return
         self.obra = None
-        if obra.tipo == "casa":
+        if obra.tipo not in m.OBRAS:
+            self.terminar_evolucion(obra)
+        elif obra.tipo == "casa":
             self._nueva_casa()
             self._cronica("casa", "Los vecinos terminan una casa nueva.")
             self._reubicar()
@@ -669,6 +691,7 @@ class Aldea:
         else:
             self.muralla += 1
             self._cronica("muralla", f"La muralla ya tiene {self.muralla} tramos de {m.TRAMOS_MURALLA}.")
+            self._comprobar_etapa()
         for h in self.habitantes.values():
             if h.accion == "construir":
                 h.fin_accion = self.turno
@@ -845,7 +868,8 @@ class Aldea:
         a.animo = limitar(a.animo + 20)
         b.animo = limitar(b.animo + 20)
         if cronica:
-            self._cronica("pareja", f"{a.nombre} y {b.nombre} forman pareja.", a.id, b.id)
+            self._cronica("pareja", f"{a.nombre} y {b.nombre} forman pareja. La aldea lo celebra con una pequeña boda.", a.id, b.id)
+            self.boda()
             self.ano_en_curso["parejas"] += 1
             self._reubicar()
 
@@ -862,10 +886,11 @@ class Aldea:
         self._cronica("muerte", texto)
         self.ano_en_curso["muertes"][causa] += 1
         for o in self.habitantes.values():
+            consuelo = 1 - 0.5 * self.efecto("templo")
             if o.id == h.pareja:
-                o.animo = limitar(o.animo - 30)
+                o.animo = limitar(o.animo - 30 * consuelo)
             elif o.id != h.id and self.relacion(h.id, o.id) > 40:
-                o.animo = limitar(o.animo - 10)
+                o.animo = limitar(o.animo - 10 * consuelo)
         self._quitar(h, causa)
 
     def _quitar(self, h: Habitante, causa: str) -> None:
@@ -892,12 +917,14 @@ class Aldea:
         if dia_del_ano % m.DIAS_POR_ESTACION == 0:
             self.sequia = self.estacion == "verano" and self.rng.random() < 0.15
             self._cronica("estacion", f"Empieza {'el' if self.estacion != 'primavera' else 'la'} {self.estacion}.")
+            self.empieza_estacion()
             if self.sequia:
                 self._cronica("sequia", "Este verano llega una sequía. Los campos darán la mitad.")
-        self.comida *= 0.99
+        self.comida *= 1 - 0.01 * (1 - 0.6 * self.efecto("granero"))
         self.relaciones = {k: v * OLVIDO_DIARIO for k, v in self.relaciones.items()}
+        quitados = set(self.arboles_quitados)
         for p, c in self.mapa.arboles.items():
-            if c < 1:
+            if c < 1 and p not in quitados:
                 self.mapa.arboles[p] = min(1.0, c + CRECIMIENTO_ARBOL)
         self.buena_pesca = self.rng.random() < 0.2
         if self.buena_pesca:
@@ -912,6 +939,7 @@ class Aldea:
         if len(self.habitantes) < 4 and self.rng.random() < 0.3:
             self._forastero()
         self._emigracion()
+        self.dia_evolucion()
         self._reubicar()
         corte = self.turno - m.TURNOS_POR_ANO
         self.cronica = [s for s in self.cronica if s.turno > corte]
@@ -932,7 +960,7 @@ class Aldea:
 
     def _calefaccion(self) -> None:
         ocupadas = [c for c in self.casas if not c.quemada and self._ocupantes()[c.id]]
-        necesaria = len(ocupadas) * LENA_INVIERNO
+        necesaria = len(ocupadas) * LENA_INVIERNO * (2 if self.invierno_duro else 1)
         if self.madera >= necesaria:
             self.madera -= necesaria
             return
@@ -979,7 +1007,7 @@ class Aldea:
     def _enfermedades(self) -> None:
         for h in self.habitantes.values():
             edad = h.edad(self.turno)
-            riesgo = 0.004 * (2 if edad >= 50 or edad < 5 else 1)
+            riesgo = 0.004 * (2 if edad >= 50 or edad < 5 else 1) * (1 - 0.4 * self.efecto("pozo"))
             if h.enfermo_hasta <= self.turno and self.rng.random() < riesgo:
                 h.enfermo_hasta = self.turno + 3 * m.TURNOS_POR_DIA
                 self._cronica("enfermedad", f"{h.nombre} cae enfermo." if h.sexo == "h"
@@ -990,7 +1018,7 @@ class Aldea:
         casas = [c for c in self.casas if not c.quemada and ocupadas[c.id]]
         if not casas:
             return
-        casa = self.rng.choice(casas)
+        casa = self.rng.choices(casas, weights=[0.2 if c.piedra else 1.0 for c in casas])[0]
         casa.quemada = True
         for h in self.habitantes.values():
             if h.casa == casa.id:
@@ -1015,10 +1043,15 @@ class Aldea:
         fuerza = self.rng.randint(1, 3 + len(self.habitantes) // 5) + (1 if self.rng.random() < 0.2 else 0)
         guardias = [h for h in self.habitantes.values()
                     if h.oficio == "guardia" and not h.fuera_hasta and h.salud > 30]
-        defensa = 1.5 * len(guardias) + 0.15 * self.muralla
+        defensa = ((1.5 + self.efecto("dojo")) * len(guardias) + 0.15 * self.muralla
+                   + 2 * self.efecto("vigia") + 0.5 * self.faroles)
         self.ano_en_curso["ataques"] += 1
-        if self.muralla and self.rng.random() < 0.5:
+        rotura = 0.5 - 0.2 * self.efecto("vigia")
+        if self.muralla <= self.reforzados:
+            rotura *= 0.3                     # el último tramo está reforzado
+        if self.muralla and self.rng.random() < rotura:
             self.muralla -= 1
+            self.reforzados = min(self.reforzados, self.muralla)
             roto = " Rompen un tramo de muralla."
         else:
             roto = ""
@@ -1035,6 +1068,9 @@ class Aldea:
         exceso = fuerza - defensa
         robado = min(self.comida, 8 * exceso)
         self.comida -= robado
+        danado = self.danar_edificio(20)
+        if danado:
+            roto += f" Estropean {danado}."
         self._cronica("ataque", f"Una noche llegan {monstruos} y entran en la aldea.{roto} "
                                 f"Se llevan {int(robado)} de comida.")
         presentes = [h for h in self.habitantes.values() if not h.fuera_hasta]
@@ -1078,6 +1114,10 @@ class Aldea:
             "producido": {k: round(v) for k, v in r["producido"].items()},
             "casas": sum(1 for c in self.casas if not c.quemada),
             "muralla": self.muralla,
+            "etapa": self.etapa,
+            "edificios": len(self.edificios),
+            "reforzados": self.reforzados,
+            "casas_piedra": sum(1 for c in self.casas if c.piedra),
             "comida": round(self.comida),
             "madera": round(self.madera),
             "piedra": round(self.piedra),

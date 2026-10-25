@@ -5,6 +5,7 @@
 import { computed } from "vue";
 import AnoAAno from "./AnoAAno.vue";
 import Cifra from "./Cifra.vue";
+import EvolucionAldea from "./EvolucionAldea.vue";
 import Icono from "./Icono.vue";
 import ListaSucesos from "./ListaSucesos.vue";
 import Subpestanas from "./Subpestanas.vue";
@@ -50,6 +51,8 @@ const VACIA = {
           </div>
         </Cifra>
       </section>
+
+      <EvolucionAldea v-if="aldea.evolucion" :evolucion="aldea.evolucion" :muralla="aldea.muralla" />
 
       <button v-if="!grande" type="button" class="boton" @click="alternarGrande">
         <Icono nombre="maximizar" :tamano="18" />Ver en grande, con la historia año a año

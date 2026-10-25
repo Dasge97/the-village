@@ -7,7 +7,7 @@ Cada habitante de una aldea decide su vida con Jev. Lo ves en directo en el nave
 
 [English](README.md) · **Español**
 
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-2.2-2ea44f)](web/src/versiones.js)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-3.0-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -56,6 +56,10 @@ El segundo objetivo es ver crecer un mundo entero sin nada escrito de antemano: 
 - **El mundo crece:** cuando una aldea se llena, alguien se marcha y funda otra. Varias aldeas
   dan un pueblo, varios pueblos una villa y varias villas una ciudad. Los consejos de pueblos,
   villas y ciudades también deciden con Jev.
+- **Una evolución larga:** cada aldea pasa por cuatro etapas de edificios (pozo, granero, taller,
+  templo, dojo, mercado…) que se estropean y hay que reparar. Los pueblos, villas y ciudades
+  tienen oro e impuestos, avances, monumentos, elecciones y revueltas, y se alían, se hacen
+  rivales o pagan tributo. Todo esto son reglas: Jev no hace más llamadas.
 - **Peligros y vida:** ataques de monstruos que se ven en el mapa, epidemias que se contagian,
   incendios, caravanas de comercio, clima y estaciones.
 - **Todo en directo en la web:** mapa en pixel art, ficha de cada habitante, árbol de familias,
@@ -171,7 +175,7 @@ Desde el panel de administración se cambian, y se guardan con la partida:
 
 | Ajuste | Valores |
 |---|---|
-| Velocidad | ×1 (un turno cada 10 s, un año del mundo al día), ×2, ×5, ×10, ×30, ×60 |
+| Velocidad | ×1 (un turno cada 10 s, un año del mundo al día), ×2, ×5, ×10, ×30, ×60, ×300, ×1000 |
 | Pausa | Sí o no |
 | Límite de Jev | Dólares al día (0,30 al empezar): 60 % para vecinos, 40 % para consejos |
 | Jev | Encendido o apagado |

@@ -92,7 +92,24 @@ export const EDIFICIOS = {
   mercado: ["casas", [256, 0, 48, 48]], taller: ["casas", [304, 0, 64, 48]], templo: ["casas", [368, 0, 48, 48]],
   dojo: ["casas", [400, 224, 64, 96]], posada: ["casas", [464, 0, 64, 64]], granero: ["casas", [48, 128, 48, 48]],
   torre: ["torres", [0, 32, 32, 32]],
+  // Edificios de la evolución de las aldeas (los demás son los de arriba).
+  pozo: ["elementos", [112, 16, 16, 32]], vigia: ["torres", [0, 0, 32, 32]], almacen: ["casas", [64, 0, 64, 48]],
+  // Edificios nuevos de pueblos, villas y ciudades, y monumentos.
+  herreria: ["casas", [304, 0, 64, 48]], escuela: ["casas", [304, 304, 48, 48]], hospital: ["casas", [64, 0, 64, 48]],
+  mina: ["casas", [464, 208, 32, 32]], acueducto: ["torres", [192, 64, 32, 32]], puerto: ["casas", [256, 48, 48, 48]],
+  teatro: ["casas", [464, 64, 48, 64]], cuartel: ["torres", [0, 64, 32, 32]], biblioteca: ["casas", [368, 0, 48, 48]],
+  estatua: ["casas", [16, 240, 32, 48]], gran_templo: ["casas", [400, 112, 64, 112]], castillo: ["torres", [288, 0, 32, 32]],
+  faro: ["torres", [192, 0, 32, 32]],
 };
+// Edificios que comparten dibujo con otro: se distinguen por el tinte.
+export const TINTE_MODELO = { herreria: 0x9c8f86, hospital: 0xf2f0fa, biblioteca: 0xc4d0f4 };
+// La torre de vigía se ve gastada y luego rota según su estado (de 50 a 1 y a 0).
+export const VIGIA_GASTADA = [[32, 0, 32, 32], [64, 0, 32, 32]];
+// Tintes: edificio estropeado, en ruinas o quemado, casa de piedra y tramo de muralla reforzado.
+export const TINTE_ESTROPEADO = 0xc0ae9c;
+export const TINTE_RUINAS = 0x4a4038;
+export const TINTE_PIEDRA = 0xc9c6c2;
+export const TINTE_REFORZADO = 0xa8b3c8;
 
 // Valla baja de madera para los campos: esquinas, tramo de frente y tramo de lado.
 export const VALLA = {

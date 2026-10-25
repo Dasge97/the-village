@@ -121,7 +121,7 @@ const panel = computed(() => {
                           @seleccionar="(id) => ir('habitantes', id)" @cerrar="ir('habitantes')"
                           @seguir="siguiendo = !siguiendo" />
           <ListaHabitantes v-else :habitantes="conexion.aldea.habitantes" :seleccionado="elegido" :grande="conexion.aldea.grande"
-                           :poblacion="conexion.aldea.poblacion"
+                           :poblacion="conexion.aldea.poblacion" :relaciones="conexion.aldea.relaciones"
                            @seleccionar="(id) => ir('habitantes', id)" />
         </template>
         <VistaFamilias v-else-if="panel.id === 'familias'" :turno="conexion.aldea.turno" />

@@ -11,12 +11,14 @@ from .mundo.grande import TIPOS, Grande, _femenino
 from .vista import vida
 
 # Edificios que se dibujan en las parcelas, de la plaza hacia fuera, antes que las casas.
-ESPECIALES = ["mercado", "templo", "dojo", "posada", "torre", "taller", "granero"]
+ESPECIALES = ["mercado", "templo", "dojo", "posada", "torre", "taller", "herreria", "escuela", "hospital", "mina",
+              "acueducto", "puerto", "teatro", "cuartel", "biblioteca", "granero"]
+MONUMENTOS_DIBUJO = {"estatua": "estatua", "gran templo": "gran_templo", "castillo": "castillo", "faro": "faro"}
 MAX_ESPECIALES = 3      # de cada tipo, como mucho, en el dibujo
 
 
 def _casas(g: Grande) -> list[dict]:
-    modelos = []
+    modelos = [MONUMENTOS_DIBUJO[n] for n in g.monumentos]
     for e in ESPECIALES:
         modelos += [e] * min(MAX_ESPECIALES, g.edificios.get(e, 0))
     modelos += ["casa"] * g.edificios.get("casa", 0)
@@ -70,6 +72,7 @@ def estado_grande(g: Grande) -> dict:
             "edificios": dict(g.edificios), "obra": g.obra["edificio"] if g.obra else None,
             "consejo": g.consejo, "animo": round(g.animo, 2), "salud": round(g.salud, 2),
             "notables": TIPOS[g.tipo]["notables"],
+            "sociedad": g.datos_sociedad(),
         },
     }
 

@@ -120,15 +120,18 @@ class Casa:
     x: int
     y: int
     quemada: bool = False
+    piedra: bool = False         # mejorada a casa de piedra (etapa 4)
+    estado: float = 100.0        # de 0 a 100: baja con los años; por debajo de 40 hay que repararla
 
 
 @dataclass
 class Obra:
-    tipo: str                    # "casa", "reconstruir" o "muralla"
+    tipo: str                    # "casa", "reconstruir", "muralla", "edificio", "reparar", "casa_piedra", "reforzar" o "faroles"
     x: int
     y: int
     progreso: int = 0
-    casa: int | None = None      # casa que se reconstruye
+    casa: int | None = None      # casa que se reconstruye, se repara o se hace de piedra
+    nombre: str | None = None    # edificio que se construye o se repara
 
 
 @dataclass(frozen=True)

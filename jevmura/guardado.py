@@ -91,6 +91,10 @@ class Guardado:
             "decisiones": dict(aldea.decisiones),
             "fallos_seguidos": aldea.fallos_seguidos,
             "ano_en_curso": aldea.ano_en_curso,
+            # Evolución de la aldea (motor/evolucion.py).
+            "etapa": aldea.etapa, "edificios": aldea.edificios, "reforzados": aldea.reforzados,
+            "faroles": aldea.faroles, "plan": aldea.plan, "consejo": aldea.consejo,
+            "invierno_duro": aldea.invierno_duro, "arboles_quitados": aldea.arboles_quitados,
             # Totales de Jev desde que existe el mundo, para que no vuelvan a cero en cada reinicio.
             "jev": {c: getattr(aldea.decisor, c) for c in CONTADORES_JEV} if hasattr(aldea.decisor, "llamadas") else None,
         }
@@ -128,6 +132,12 @@ class Guardado:
         for p, valor in zip(sorted(aldea.mapa.arboles), e["arboles"]):
             aldea.mapa.arboles[p] = valor
         aldea.decisiones = Counter(e["decisiones"])
+        for clave in ("etapa", "edificios", "reforzados", "faroles", "plan", "consejo", "invierno_duro"):
+            if clave in e:
+                setattr(aldea, clave, e[clave])
+        aldea.arboles_quitados = [tuple(p) for p in e.get("arboles_quitados", [])]
+        aldea._recalcular_efectos()
+        aldea._comprobar_etapa()
         if e.get("jev") and hasattr(aldea.decisor, "llamadas"):
             for c in CONTADORES_JEV:
                 setattr(aldea.decisor, c, e["jev"].get(c, 0))

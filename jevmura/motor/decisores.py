@@ -42,6 +42,8 @@ class EstadoAldea:
     llenos: tuple[str, ...]          # recursos con el almacén lleno: trabajar en ellos no sirve
     muralla: int                     # tramos construidos de 20
     obra: str | None                 # obra en curso, en texto
+    etapa: str = ""                  # etapa de la evolución de la aldea
+    edificios: tuple[str, ...] = ()  # edificios que ya tiene (pozo, granero…)
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,8 @@ class DecisorReglas:
                 p -= 2.0
         elif o.tipo == "construir":
             p += 1.6 if o.id != "construir:muralla" else 0.8
+            if a.dias_comida < 5:
+                p -= 1.5                      # con poca comida, primero hay que sacar comida
         elif o.tipo == "descansar":
             p += 1.5 if s.energia < 35 else 0.2 if s.energia < 60 else -1.0
         elif o.tipo == "comer":
@@ -159,6 +163,8 @@ def motivo(s: Situacion, o: Opcion) -> str:
     if o.tipo == "oficio":
         return f"Faltan {PLURAL_OFICIO[o.id.split(':')[1]]} en la aldea"
     if o.tipo == "construir":
+        if o.id.count(":") == 2:              # obras de la evolución: lo dice su descripción
+            return o.descripcion.split(":")[0]
         return "Hay que reforzar la muralla" if o.id == "construir:muralla" else "La aldea necesita otra casa"
     if o.tipo == "descansar":
         return f"Está {cansado}"

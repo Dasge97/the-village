@@ -26,17 +26,19 @@ from ..guardado import Guardado
 from ..motor import modelos as m
 from ..motor.aldea import Aldea, con_articulo
 from ..motor.decisores import Decisor
+from ..motor.evolucion import INSTRUCCIONES_CONSEJO_ALDEA
 from ..motor.nombres import ASPECTOS as _ASPECTOS
 from . import zonas
 from .grande import Grande
 from .grande import nuevo as nuevo_grande
 from .presupuesto import DecisorConPresupuesto, Presupuesto
+from .relaciones import RIVALIDAD, Relaciones, par
 
 SEGUNDA = "Aldea del río"
 SEMILLA_POR_ID = 7777          # la aldea n usa la semilla del mundo + 7777 × (n − 1)
 MAX_ALDEAS = 40                 # aldeas detalladas como mucho; después la gente va a las que tengan sitio
 CRONICA_MUNDO = 500             # sucesos del mundo que se guardan
-VELOCIDADES = [1, 2, 5, 10, 30, 60]     # las que se pueden elegir en el panel de administración
+VELOCIDADES = [1, 2, 5, 10, 30, 60, 300, 1000]     # las que se pueden elegir en el panel de administración
 COSTE_LLAMADA = 0.000056                 # USD por llamada a Jev, para pasar el gasto máximo a llamadas
 AJUSTES = {"velocidad": 1, "pausado": False, "usd_dia": 0.30, "jev": True}
 DIAS_DE_GASTO = 60                       # días reales de gasto que se guardan
@@ -83,7 +85,7 @@ def _ruta_segunda(ruta_db: str) -> str:
     return f"{base}-2.{extension}" if punto else f"{ruta_db}-2"
 
 
-class Mundo:
+class Mundo(Relaciones):
     def __init__(self, ruta_db: str, semilla: int = 0, decisor: Decisor | None = None,
                  segundos_por_turno: float = m.TURNO_SEGUNDOS, hora_inicial: float = 0,
                  presupuesto: Presupuesto | None = None):
@@ -108,6 +110,7 @@ class Mundo:
         self._turnos_reales: list[float] = []   # cuándo acabaron los últimos turnos, para medir la velocidad real
         self.global_ = GuardadoMundo(ruta_db.rpartition(".")[0] + "-global.db")   # mundo.db → mundo-global.db
         datos = self.global_.cargar()
+        self._iniciar_relaciones(datos)
         if datos:
             self._cargar(datos)
         else:
@@ -214,6 +217,9 @@ class Mundo:
             "asentamientos": [{"id": id, "nombre": meta["nombre"], "tipo": self.tipo(id), "zona": meta["zona"],
                                "bioma": meta["bioma"], "poblacion": self.poblacion(id)} for id, meta in self.meta.items()],
             "caminos": [list(c) for c in self._caminos()],
+            "alianzas": [list(par(k)) for k in sorted(self.alianzas)],
+            "vasallos": [[v, s] for v, s in self.vasallos.items()],
+            "rivalidades": [list(par(k)) for k, v in self.relaciones.items() if v <= RIVALIDAD],
             "poblacion": sum(self.poblacion(id) for id in self.meta),
             "sucesos": [self._suceso_publico(s) for s in self.cronica[-60:]],
             "momentos": [self._suceso_publico(s) for s in self.cronica if len(s) > 3 and s[3]],
@@ -342,6 +348,12 @@ class Mundo:
                 self._repartir(id, g)
         if (self.turno // m.TURNOS_POR_DIA) % m.DIAS_POR_ESTACION == 0:
             self._comercio()
+            self._comercio_aldeas()
+            self._estacion_relaciones()
+        for id, g in self.grandes.items():          # monumentos, revueltas, terremotos…
+            for texto in g.momentos:
+                self.suceso(texto, id, grande=True)
+            g.momentos.clear()
         self._contagios()
         self._anotar_ano()
 
@@ -380,11 +392,54 @@ class Mundo:
                 por_rico = getattr(rico, recurso) / max(1, rico.poblacion)
                 por_pobre = getattr(pobre, recurso) / max(1, pobre.poblacion)
                 if por_rico > 3 * por_pobre + 5:
-                    cantidad = round(getattr(rico, recurso) * 0.1)
+                    # Aliados, terrenos distintos, la rueda, el puerto y el faro hacen que la caravana valga más.
+                    valor = (1.5 if self.aliados(a, b) else 1.0) * (1.3 if ga.bioma != gb.bioma else 1.0)
+                    cantidad = round(getattr(rico, recurso) * 0.1 * min(2.0, valor * rico.factor_comercio()))
+                    cantidad = min(cantidad, round(getattr(rico, recurso) * 0.3))
+                    self.sumar_relacion(a, b, 6)
+                    rico.oro += cantidad * 0.02 * (1.3 if ga.bioma != gb.bioma else 1.0)
                     setattr(rico, recurso, getattr(rico, recurso) - cantidad)
                     setattr(pobre, recurso, getattr(pobre, recurso) + cantidad)
                     pobre._cronica("hallazgo", f"Llega una caravana del {rico.nombre} con {cantidad} de {recurso}.")
                     rico._cronica("obra", f"Sale una caravana con {cantidad} de {recurso} hacia el {pobre.nombre}.")
+
+    def _comercio_aldeas(self) -> None:
+        """Cada estación, una aldea con mercado manda en caravana lo que tiene casi lleno en el almacén
+        a la aldea o pueblo cercano (a 2 zonas o menos) que menos tiene de eso, y vuelve con algo de
+        lo que a ella le falta."""
+        for id, a in self.aldeas.items():
+            if not a.efecto("mercado") or not a.habitantes:
+                continue
+            zona = self.meta[id]["zona"]
+            vecinos = [j for j in self.meta if j != id and distancia(self.meta[j]["zona"], zona) <= 2
+                       and self.poblacion(j) > 0]
+            if not vecinos:
+                continue
+            for recurso in ("comida", "madera", "piedra"):
+                if getattr(a, recurso) < 0.9 * a.tope(recurso):
+                    continue
+                destino = min(vecinos, key=lambda j: getattr(self.asentamiento(j), recurso) / max(1, self.poblacion(j)))
+                otro = self.asentamiento(destino)
+                cantidad = round(getattr(a, recurso) * 0.3)
+                setattr(a, recurso, getattr(a, recurso) - cantidad)
+                if destino in self.aldeas:
+                    otro._guardar(recurso, cantidad)
+                else:
+                    setattr(otro, recurso, getattr(otro, recurso) + cantidad)
+                # A la vuelta trae la mitad en lo que más le falta a la aldea, si el otro tiene de sobra.
+                falta = min(("comida", "madera", "piedra"), key=lambda r: getattr(a, r) / a.tope(r))
+                traido = 0
+                if falta != recurso and getattr(otro, falta) > 2 * cantidad:
+                    traido = cantidad // 2
+                    setattr(otro, falta, getattr(otro, falta) - traido)
+                    a._guardar(falta, traido)
+                vuelta = f" y vuelve con {traido} de {falta}" if traido else ""
+                a._cronica("caravana", f"Sale una caravana del mercado con {cantidad} de {recurso} hacia {con_articulo(otro.nombre)}{vuelta}.")
+                if destino in self.aldeas:
+                    otro._cronica("caravana", f"Llega una caravana de {con_articulo(a.nombre)} con {cantidad} de {recurso}.")
+                else:
+                    otro._cronica("hallazgo", f"Llega una caravana de {con_articulo(a.nombre)} con {cantidad} de {recurso}.")
+                break                                 # una caravana por estación
 
     def _contagios(self) -> None:
         """Una epidemia puede pasar a los pueblos, villas y ciudades de alrededor (a 2 zonas o menos)."""
@@ -500,8 +555,23 @@ class Mundo:
         self.suceso(f"Gente del {g.nombre} funda {con_articulo(aldea.nombre)}.", nueva)
 
     def _consejos(self) -> None:
-        """Cada estación, el consejo de cada pueblo, villa o ciudad elige qué hacer: con Jev si queda
-        presupuesto de consejos; si no, con las reglas."""
+        """Cada estación, el consejo de cada aldea, pueblo, villa o ciudad elige qué hacer: con Jev
+        si queda presupuesto de consejos; si no, con las reglas."""
+        for id, a in self.aldeas.items():
+            if not a.toca_consejo():
+                continue
+            eleccion, quien, confianza = a.eleccion_consejo_reglas(), "reglas", None
+            if self.jev is not None and hasattr(self.jev, "elegir"):
+                if self.presupuesto.gastar("consejos", importante=id == 1 or id in self.vigiladas):
+                    try:
+                        eleccion, confianza = self.jev.elegir(a.situacion_consejo(), a.opciones_consejo(),
+                                                              INSTRUCCIONES_CONSEJO_ALDEA)
+                        quien = "jev"
+                    except Exception:
+                        quien = "respaldo"
+                else:
+                    quien = "presupuesto"
+            a.aplicar_consejo(eleccion, quien, confianza)
         for id, g in self.grandes.items():
             if not g.toca_consejo():
                 continue
@@ -557,6 +627,7 @@ class Mundo:
             "anual": self.anual,
             "ajustes": self.ajustes,
             "gasto": self.gasto,
+            **self.datos_relaciones(),
         })
         self.guardado_en = time.time()
 

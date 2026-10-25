@@ -530,8 +530,9 @@ Se bajaron a 4 y 7.)
   simulación rápida: `python -m jevmura.mundo.simular [años] [semilla] [carpeta]`. Avanza solo los
   pueblos, villas y ciudades con todas las reglas del mundo y escribe la población cada 5 años.
   Con una carpeta, guarda el mundo para abrirlo con `python -m jevmura.servidor --db <carpeta>/mundo.db`.
-- Resultado medido (1,3 hijos al año por mujer de 18 a 40 años): 137.000 personas en el año 75,
-  423.000 en el 90 y 557.000 en el 95, en unos 570 asentamientos (5 ciudades). La partida
+- Resultado medido en la 2.0 (1,3 hijos al año por mujer de 18 a 40 años): 137.000 personas en el
+  año 75, 423.000 en el 90 y 557.000 en el 95, en unos 570 asentamientos (5 ciudades). Desde la 3.0
+  la natalidad es 1,4 (ver «Evolución de los asentamientos»). La partida
   real arranca algo más lenta, porque las aldeas detalladas tienen que llenarse antes de que nazca
   el primer pueblo.
 
@@ -579,8 +580,9 @@ Todas publicadas el 24-10-2026.
 Un panel con contraseña para el dueño del proyecto, en `#/admin`. El acceso está en la barra de
 abajo. Lo decide el propio panel, no Jev ni las reglas.
 
-- **Tiempo:** la velocidad del mundo se elige entre ×1, ×2, ×5, ×10, ×30 y ×60. A ×1, un turno
-  dura 10 segundos; a ×60, 1/6 de segundo. También se puede pausar. La web recibe la duración
+- **Tiempo:** la velocidad del mundo se elige entre ×1, ×2, ×5, ×10, ×30, ×60, ×300 y ×1000. A
+  ×1, un turno dura 10 segundos; a ×1000, una centésima. Por encima de ×60, la web recibe como
+  mucho unos 7 estados por segundo. También se puede pausar. La web recibe la duración
   real de cada turno para que los habitantes anden a la velocidad buena. Arriba a la izquierda
   pone «En directo · ×10» o «En pausa».
 - **Gasto:** el gasto de Jev se cuenta por día real y se guardan 60 días. El límite se pone en
@@ -643,9 +645,33 @@ mapa con un gráfico del paquete y aparece como opción «construir» en las dec
 | Muralla reforzada | Un ataque casi nunca rompe ese tramo |
 | Faroles | Los ataques de noche se frenan mejor |
 
-Los costes se ajustan con la simulación por lotes (`python -m jevmura.motor.lote`) para este
-ritmo: la etapa 2 se termina hacia el año 5 del mundo, la 3 hacia el 10 y las mejoras de la 4
-duran hasta el año 15 o 20. Si hace falta, se baja la producción de piedra y madera.
+Costes finales (madera, piedra y turnos de obra; un turno son 10 segundos a ×1):
+
+| Obra | Madera | Piedra | Turnos |
+|---|---|---|---|
+| Pozo | 50 | 150 | 900 |
+| Granero | 200 | 100 | 1.200 |
+| Taller | 180 | 180 | 1.200 |
+| Torre de vigía | 150 | 240 | 1.200 |
+| Huertos nuevos | 150 | 60 | 1.000 |
+| Almacén de piedra (el primero de la etapa 3) | 160 | 220 | 1.500 |
+| Templo | 300 | 480 | 2.400 |
+| Dojo | 400 | 400 | 2.100 |
+| Mercado | 350 | 300 | 1.800 |
+| Casa de piedra (cada una) | 40 | 200 | 1.000 |
+| Tramo reforzado (cada uno) | 15 | 120 | 700 |
+| Faroles (cuatro, uno por puerta) | 80 | 40 | 450 |
+| Reparar un edificio | 30 % | 30 % | 40 % |
+
+Ritmo medido con 8 aldeas y el decisor de reglas: la etapa 2 se abre hacia el año 2 o 3 y se
+termina entre el 5 y el 7; la aldea llega a la etapa 4 entre el año 10 y el 13 y termina las
+mejoras hacia el 21. Ninguna aldea se vacía. Dos frenos lo hacen posible: no se empieza una obra
+de la evolución con comida para menos de 4 días, y la leña de reserva para el invierno nunca
+pide más de lo que cabe en el almacén (sin esto, el almacén de piedra no se podía pagar nunca).
+
+Todos los edificios van dentro de la muralla, donde nunca hay árboles, salvo los huertos nuevos,
+que van junto a los campos y quitan los árboles de su sitio. El código está en
+`jevmura/motor/evolucion.py`.
 
 ### La aldea: gastos que no se acaban
 
@@ -679,11 +705,35 @@ El consejo gana opciones nuevas (investigar, aliarse, empezar un monumento, subi
 impuestos) en la misma llamada de cada estación. Todo queda en la crónica y en la historia del
 mundo, y lo importante sale en los grandes momentos.
 
-### Versiones previstas
+### Cómo quedó en pueblos, villas y ciudades
 
-1. 2.3: aldea, etapa 2, desgaste y consejo de la aldea. Costes ajustados con la simulación.
-2. 2.4: aldea, etapas 3 y 4, fiestas, inviernos duros, bodas y comercio de las aldeas.
-3. 2.5: pueblos, villas y ciudades: oro, edificios nuevos, especialidades y comercio por especialidad.
-4. 2.6: avances, sociedad (elecciones, protestas y revueltas), sucesos grandes y monumentos.
-5. 2.7: relaciones entre asentamientos: alianzas, rivalidades y tributos.
-6. 3.0: todo junto, comprobado con la simulación de la aldea y la del mundo.
+- Código: `jevmura/mundo/sociedad.py` (oro, edificios nuevos, avances, sociedad, sucesos y
+  monumentos) y `jevmura/mundo/relaciones.py` (alianzas, rivalidades y tributos).
+- Impuestos: bajo, normal o alto. Dan 0,0005, 0,001 o 0,002 de oro por persona y día, y cambian
+  el ánimo (+0,03, 0 o −0,07). Una mina da 1,5 de oro y 3 de piedra al día.
+- Edificios nuevos: herrería, escuela, hospital y mina desde pueblo; acueducto, puerto, teatro y
+  cuartel desde villa; biblioteca en ciudad. Uno por cada 3.000 habitantes.
+- Avances: 8, de 80 a 160 días de estudio. Investigar cuesta 0,5 de oro al día más 0,0005 por
+  habitante. La escuela, la escritura y la biblioteca lo aceleran.
+- Monumentos: estatua y gran templo desde villa; castillo y faro en ciudad (el faro pide
+  puerto). Cuestan madera, piedra y oro y tardan de 120 a 280 días.
+- Descontento: sube cuando el ánimo está por debajo de 0,45. Con 0,5 puede haber protestas (se
+  trabaja un 20 % menos) y con 0,9, una revuelta que echa al jefe y baja los impuestos. Cada 4
+  años hay elecciones del alcalde o gobernador.
+- Sucesos grandes, con su probabilidad al día: inundación (1/900), terremoto (1/2.400), gran
+  incendio (1/1.200, desde villa), sequía larga (1/1.500), peste (1/3.000, desde villa), cometa
+  (1/4.000), mercader extranjero (1/400) y veta de mina (1/1.500).
+- Relaciones, una vez por estación, entre vecinos a 3 zonas o menos. Alianza con 60 o más (se
+  rompe por debajo de 20) y rivalidad con −40 o menos. Entre rivales, una escaramuza el 6 % de
+  las estaciones: el que pierde pierde el 0,4 % de su gente y el 5 % de sus recursos. Una villa o
+  ciudad puede exigir tributo a un pueblo vecino 20 veces más pequeño y 5 veces más débil: el 15 %
+  del oro y el 5 % de la comida cada estación, hasta que el pueblo se rebela.
+- Las reglas del consejo eligen investigar, un monumento o los impuestos solo cuando no hay nada
+  útil que construir o una de cada cinco veces. Un monumento solo se empieza si sobra el doble de
+  lo que cuesta. Sin estas condiciones, el mundo crecía la mitad de rápido.
+- Ritmo: para compensar estos gastos, la natalidad pasa de 1,3 a 1,4 hijos al año por mujer de
+  18 a 40 años. Medido con la simulación rápida: 377.000 personas en el año 90 y 468.000 en el 95.
+
+### Versiones
+
+Todo se publicó junto en la versión 3.0 (25-10-2026).

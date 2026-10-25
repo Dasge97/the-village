@@ -18,6 +18,7 @@ from ..motor import modelos as m
 from ..motor.mapa import generar_mapa
 from ..motor.modelos import Persona, Suceso
 from ..motor.nombres import elegir_aspecto, elegir_nombre
+from .sociedad import EDIFICIOS_NUEVOS, MONUMENTOS, Sociedad
 
 EDAD_MAX = 90
 TIPOS = {
@@ -36,13 +37,14 @@ EDIFICIOS = {
     "muralla": (20, 60, 3, "un tramo de muralla: defensa"),
     "torre": (30, 80, 4, "defensa contra los ataques"),
     "posada": (50, 30, 4, "atrae a gente de fuera"),
+    **EDIFICIOS_NUEVOS,
 }
 PRODUCCION = {  # comida, madera, piedra por trabajador y terreno
     "pradera": (1.0, 1.0, 1.0), "bosque": (0.85, 1.5, 0.9), "desierto": (0.6, 0.6, 1.4),
     "nieve": (0.65, 1.1, 1.1), "pantano": (0.8, 1.0, 0.7),
 }
 COSECHA = {"primavera": 1.0, "verano": 1.15, "otoño": 1.25, "invierno": 0.45}
-NACIMIENTOS = 1.3      # hijos al año por mujer de 18 a 40 años con comida y casa (ajustado: medio millón en ~90 años)
+NACIMIENTOS = 1.4      # hijos al año por mujer de 18 a 40 años con comida y casa (ajustado: medio millón en ~90 años)
 COMIDA_DIA = 1.75      # por persona y día del mundo, como en las aldeas
 
 
@@ -73,7 +75,7 @@ class Notable:
 
 
 @dataclass
-class Grande:
+class Grande(Sociedad):
     id: int
     nombre: str
     tipo: str
@@ -99,12 +101,25 @@ class Grande:
     fiesta: int = 0
     ataque: dict | None = None
     salientes: int = 0                                 # gente que quiere irse (la recoge el mundo)
+    # Vida social (mundo/sociedad.py).
+    oro: float = 0.0
+    impuesto: str = "normal"
+    avances: list = field(default_factory=list)
+    investigando: dict | None = None
+    descontento: float = 0.0
+    protesta: int = 0
+    monumentos: list = field(default_factory=list)
+    monumento: dict | None = None
+    hambruna: int = 0
+    proxima_eleccion: int = 0
 
     def __post_init__(self):
         self.rng = random.Random(self.semilla * 31 + self.turno)
         self.mapa = generar_mapa(self.semilla, self.bioma)
         self.lotes = lotes(self.mapa)
         self.decisor = None
+        self.momentos: list[str] = []        # grandes momentos para la historia del mundo (los recoge el mundo)
+        self.proteccion = 0.0                # defensa que prestan aliados y señor (mundo/relaciones.py)
         if not self.ano_en_curso:
             self.ano_en_curso = self._resumen_vacio()
 
@@ -156,8 +171,13 @@ class Grande:
         return 1 + self.poblacion // 80
 
     def defensa(self) -> float:
+        """La propia más la ayuda de aliados y señor (la calcula el mundo cada estación)."""
+        return self.defensa_propia() + self.proteccion
+
+    def defensa_propia(self) -> float:
         e = self.edificios
-        return e.get("dojo", 0) * 4 + e.get("torre", 0) * 3 + e.get("muralla", 0) * 0.6 + self.poblacion * 0.02
+        return (e.get("dojo", 0) * 4 + e.get("torre", 0) * 3 + e.get("muralla", 0) * 0.6 + self.poblacion * 0.02
+                + self.defensa_extra())
 
     # ---- gente que llega y que se va ----
 
@@ -195,6 +215,7 @@ class Grande:
         self._nacimientos_y_muertes()
         self._obras()
         self._sucesos()
+        self.dia_sociedad()
         self._notables()
         if self.poblacion > 0.9 * self.tope:
             self.salientes += max(1, round(self.poblacion * 0.004))
@@ -206,12 +227,12 @@ class Grande:
         w = self.trabajadores()
         fc, fm, fp = PRODUCCION[self.bioma]
         granero = 1 + 0.004 * min(self.edificios.get("granero", 0), self.max_graneros())
-        por_campesino = 8.0 * fc * COSECHA[self.estacion] * granero
+        por_campesino = 8.0 * fc * COSECHA[self.estacion] * granero * self.factor_comida()
         necesaria = self.comida_diaria()
         # Se siembra pensando en todo el año (cosecha media 0,96), para guardar para el invierno.
         campesinos = min(w * 0.9, necesaria * 1.3 / max(8.0 * fc * 0.96 * granero, 0.1))
         resto = w - campesinos
-        taller = 1 + 0.01 * self.edificios.get("taller", 0)
+        taller = (1 + 0.01 * self.edificios.get("taller", 0)) * self.factor_produccion()
         self.comida += campesinos * por_campesino - necesaria
         self.madera += resto * 0.55 * 1.0 * fm * taller
         self.piedra += resto * 0.45 * 0.8 * fp * taller
@@ -222,7 +243,8 @@ class Grande:
         self.comida, self.madera, self.piedra = min(self.comida, tope), min(self.madera, tope), min(self.piedra, tope)
         mercado = 0.03 if self.edificios.get("mercado") else 0
         templo = 0.02 if self.edificios.get("templo") else 0
-        objetivo = 0.55 + mercado + templo + (0.2 if self.fiesta else 0) - (0.25 if self.comida < necesaria else 0)
+        objetivo = (0.55 + mercado + templo + (0.2 if self.fiesta else 0) - (0.25 if self.comida < necesaria else 0)
+                    + self.animo_extra())
         self.animo += (objetivo - self.animo) * 0.1
         self.fiesta = max(0, self.fiesta - 1)
 
@@ -235,7 +257,8 @@ class Grande:
         nacen = self._redondear(fertiles * tasa / m.DIAS_POR_ANO)
         self.edades[0] += nacen
         self.ano_en_curso["nacimientos"] += nacen
-        extra = (2.5 if hambre else 1.0) * (4.0 if self.epidemia else 1.0) / (1 + (0.5 if self.edificios.get("templo") else 0))
+        extra = ((2.5 if hambre else 1.0) * (4.0 if self.epidemia else 1.0) / (1 + (0.5 if self.edificios.get("templo") else 0))
+                 * self.factor_mortalidad())
         muertes = 0
         for edad in range(EDAD_MAX + 1):
             n = self.edades[edad]
@@ -265,7 +288,8 @@ class Grande:
         self.madera -= madera
         self.piedra -= piedra
         # Las ciudades construyen más deprisa: tienen más manos.
-        self.obra = {"edificio": edificio, "dias": max(1, round(dias / (1 + self.trabajadores() / 400))), "total": dias}
+        self.obra = {"edificio": edificio, "dias": max(1, round(dias * self.factor_obras() / (1 + self.trabajadores() / 400))),
+                     "total": dias}
         return True
 
     def _casas(self) -> None:
@@ -303,7 +327,7 @@ class Grande:
         r = self.rng.random
         if r() < 1 / 30:
             self._ataque()
-        if not self.epidemia and r() < 1 / (220 * (2 if self.edificios.get("templo") else 1)):
+        if not self.epidemia and r() < 1 / (220 * (2 if self.edificios.get("templo") else 1) * self.factor_epidemia()):
             self.epidemia = self.rng.randint(3, 8)
             self._cronica("enfermedad", "Llega una epidemia. Mucha gente cae enferma.")
             self.salud = 0.8
@@ -316,7 +340,7 @@ class Grande:
         if r() < 1 / 60:
             self.comida += pob * 2
             self._cronica("pesca", "Este año la cosecha viene muy buena.")
-        if self.edificios.get("posada") and r() < 0.15:
+        if (self.edificios.get("posada") or "faro" in self.monumentos) and r() < 0.15 * (1 + ("faro" in self.monumentos)):
             llegan = self.rng.randint(1, 3)
             self.sumar(self.rng.randint(18, 35) for _ in range(llegan))
             self.ano_en_curso["llegadas"] += llegan
@@ -375,7 +399,11 @@ class Grande:
         p = self.registro[n.id]
         p.salida, p.causa = self.turno, causa
         del self.notables[n.id]
-        self._cronica("muerte", f"Muere {n.nombre}, {_femenino(n.cargo) if n.sexo == 'm' else n.cargo}.")
+        cargo = _femenino(n.cargo) if n.sexo == 'm' else n.cargo
+        if causa in ("revuelta", "elecciones"):
+            self._cronica("oficio", f"{n.nombre} deja de ser {'la' if n.sexo == 'm' else 'el'} {cargo}.")
+        else:
+            self._cronica("muerte", f"Muere {n.nombre}, {cargo}.")
 
     # ---- consejo ----
 
@@ -398,12 +426,15 @@ class Grande:
                 continue
             if edificio in ("mercado", "templo", "dojo", "posada") and self.edificios.get(edificio, 0) >= 1 + self.poblacion // 1500:
                 continue
+            if edificio in EDIFICIOS_NUEVOS and edificio not in self.edificios_nuevos_posibles():
+                continue
             if not self.obra and self.puede_pagar(edificio):
                 ops[f"construir:{edificio}"] = f"Construir {_articulo(edificio)}: {da} (cuesta {madera} de madera y {piedra} de piedra)"
         if self.comida > self.comida_diaria() * 10:
             ops["fiesta"] = "Celebrar una fiesta: sube el ánimo de todos, gasta comida"
         if self.poblacion > 60:
             ops["fundar"] = "Mandar a unos cuantos a fundar una aldea nueva cerca: alivia el sitio y extiende el mundo"
+        ops.update(self.opciones_sociedad())
         ops["ahorrar"] = "No hacer nada nuevo esta estación y guardar recursos"
         return ops
 
@@ -416,6 +447,10 @@ class Grande:
             "dias_de_comida": round(self.comida / max(1, self.comida_diaria()), 1),
             "edificios": dict(self.edificios), "obra_en_marcha": self.obra["edificio"] if self.obra else None,
             "defensa": round(self.defensa(), 1), "animo": round(self.animo, 2), "salud": round(self.salud, 2),
+            "oro": int(self.oro), "impuestos": self.impuesto, "avances": list(self.avances),
+            "investigando": self.investigando["avance"] if self.investigando else None,
+            "descontento": round(self.descontento, 2), "monumentos": list(self.monumentos),
+            "especialidad_del_terreno": self.especialidad(),
             "sucesos": [s.texto for s in self.cronica[-5:]] or ["nada destacable"],
         }
 
@@ -427,21 +462,35 @@ class Grande:
         if self.falta_casa():
             # Si hace falta sitio y no llega para una casa, se ahorra en vez de gastar en otra cosa.
             return "construir:casa" if "construir:casa" in ops else "ahorrar"
-        orden = ["construir:granero", "construir:dojo", "construir:templo", "construir:mercado", "construir:muralla",
-                 "construir:taller", "construir:torre", "construir:posada", "construir:casa"]
+        # Con la mitad de los graneros que caben, antes que otro granero van los edificios nuevos que
+        # todavía no tiene (los graneros dan comida y de ellos depende el ritmo de crecimiento).
+        nuevos = [f"construir:{e}" for e in EDIFICIOS_NUEVOS if not self.edificios.get(e)]
+        granero = ["construir:granero"]
+        orden = ((granero + nuevos) if self.edificios.get("granero", 0) < self.max_graneros() // 2
+                 else (nuevos + granero)) + [
+            "construir:dojo", "construir:templo", "construir:mercado", "construir:muralla",
+            "construir:taller", "construir:torre", "construir:posada",
+            *[f"construir:{e}" for e in EDIFICIOS_NUEVOS], "construir:casa"]
         if self.comida < self.comida_diaria() * 4:
             orden.insert(0, "construir:granero")
-        for o in orden:
-            if o in ops and (o != "construir:casa" or (self.poblacion > 0.5 * self.capacidad and self.capacidad < self.tope)):
-                return o
-        return "ahorrar"
+        eleccion = next((o for o in orden if o in ops and (
+            o != "construir:casa" or (self.poblacion > 0.5 * self.capacidad and self.capacidad < self.tope))), "ahorrar")
+        # Investigar, monumentos e impuestos, cuando no hay nada útil que construir o de vez en cuando.
+        social = self.eleccion_sociedad_reglas()
+        sobra_granero = eleccion == "construir:granero" and self.edificios.get("granero", 0) >= self.max_graneros() // 2
+        if social and self.comida > self.comida_diaria() * 6 and (
+                eleccion == "ahorrar" or sobra_granero or self.rng.random() < 0.2):
+            return social
+        return eleccion
 
     def aplicar(self, eleccion: str, quien: str, confianza: float | None = None) -> None:
         ops = self.opciones()
         if eleccion not in ops:
             eleccion = "ahorrar"
         texto = ops[eleccion]
-        if eleccion.startswith("construir:"):
+        if self.aplicar_sociedad(eleccion):
+            pass
+        elif eleccion.startswith("construir:"):
             self.empezar(eleccion.split(":")[1])
         elif eleccion == "fiesta":
             self.comida -= self.comida_diaria() * 2
@@ -480,7 +529,7 @@ class Grande:
     def a_datos(self) -> dict:
         d = {k: getattr(self, k) for k in ("id", "nombre", "tipo", "bioma", "semilla", "turno", "edades", "comida",
                                             "madera", "piedra", "edificios", "salud", "animo", "obra", "siguiente_id",
-                                            "consejo", "epidemia", "fiesta", "salientes")}
+                                            "consejo", "epidemia", "fiesta", "salientes", *SOCIALES)}
         d["notables"] = [asdict(n) for n in self.notables.values()]
         d["registro"] = [asdict(p) for p in self.registro.values()]
         d["cronica"] = [[s.turno, s.tipo, s.texto] for s in self.cronica]
@@ -495,6 +544,7 @@ class Grande:
         datos = {k: d[k] for k in ("id", "nombre", "tipo", "bioma", "semilla", "turno", "edades", "comida", "madera",
                                    "piedra", "edificios", "salud", "animo", "obra", "siguiente_id", "consejo",
                                    "epidemia", "fiesta", "salientes")}
+        datos |= {k: d[k] for k in SOCIALES if k in d}
         g = cls(**datos)
         g.notables = {n["id"]: Notable(**n) for n in d["notables"]}
         g.registro = {p["id"]: Persona(**{**p, "padres": tuple(p["padres"]) if p["padres"] else None}) for p in d["registro"]}
@@ -547,10 +597,16 @@ def lotes(mapa) -> list[tuple[int, int]]:
     return elegidos
 
 
+SOCIALES = ("oro", "impuesto", "avances", "investigando", "descontento", "protesta", "monumentos", "monumento",
+            "hambruna", "proxima_eleccion")
+
+
 def _articulo(edificio: str) -> str:
     return {"casa": "una casa", "granero": "un granero", "taller": "un taller", "mercado": "un mercado",
             "templo": "un templo", "dojo": "un dojo", "muralla": "un tramo de muralla", "torre": "una torre",
-            "posada": "una posada"}[edificio]
+            "posada": "una posada", "herreria": "una herrería", "escuela": "una escuela", "hospital": "un hospital",
+            "mina": "una mina", "acueducto": "un acueducto", "puerto": "un puerto", "teatro": "un teatro",
+            "cuartel": "un cuartel", "biblioteca": "una biblioteca"}[edificio]
 
 
 def _articulo_nombre(nombre: str) -> str:

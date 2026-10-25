@@ -4,13 +4,14 @@
 import { computed } from "vue";
 import Cara from "./Cara.vue";
 import Cifra from "./Cifra.vue";
+import SociedadGrande from "./SociedadGrande.vue";
 import Subpestanas from "./Subpestanas.vue";
 import { irPestana, ruta } from "../ruta.js";
 import { accionEnTexto, mayuscula } from "../textos.js";
 
 // `grande`: si es un pueblo, villa o ciudad, sus cifras (población por edades, consejo…). Allí la
 // lista son sus notables, no toda la gente.
-const props = defineProps({ habitantes: Array, seleccionado: Number, grande: Object, poblacion: Number });
+const props = defineProps({ habitantes: Array, seleccionado: Number, grande: Object, poblacion: Number, relaciones: Object });
 const QUIEN = { jev: "Jev", reglas: "las reglas", presupuesto: "las reglas (Jev estaba ocupado)", respaldo: "las reglas" };
 const numero = (n) => n.toLocaleString("es-ES");
 const emit = defineEmits(["seleccionar"]);
@@ -59,6 +60,7 @@ const oficio = (h) => (h.oficio ? mayuscula(h.oficio) : h.sexo === "m" ? "Niña"
         <span class="suave-grande">({{ QUIEN[grande.consejo.quien] ?? "las reglas" }}<template v-if="grande.consejo.confianza != null">,
           {{ Math.round(grande.consejo.confianza * 100) }} %</template>)</span>
       </p>
+      <SociedadGrande v-if="grande.sociedad" :sociedad="grande.sociedad" :relaciones="relaciones" />
       <h3 class="titulo-notables">Notables</h3>
     </template>
     <p v-else class="intro">Quién vive en la aldea y qué está haciendo ahora. Pulsa a alguien para ver su ficha.</p>
@@ -82,7 +84,7 @@ const oficio = (h) => (h.oficio ? mayuscula(h.oficio) : h.sexo === "m" ? "Niña"
 <style scoped>
 .habitantes { display: flex; flex-direction: column; gap: var(--space-3); }
 .intro { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
-.cifras-grande { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.cifras-grande { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
 .suave-grande { margin: 0; font-size: var(--text-xs); color: var(--color-text-muted); }
 .consejo { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border); font-size: var(--text-sm); }
 .titulo-notables { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }

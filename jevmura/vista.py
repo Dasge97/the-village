@@ -11,6 +11,7 @@ import re
 
 from .motor import modelos as m
 from .motor.aldea import TURNOS_ATAQUE_VISIBLE, Aldea
+from .motor.evolucion import EDIFICIOS, ETAPAS, coste_obra
 from .motor.modelos import Habitante
 
 # Una letra por tipo de casilla para que el mapa ocupe poco.
@@ -55,8 +56,9 @@ def estado_publico(aldea: Aldea) -> dict:
     obra = None
     if aldea.obra:
         o = aldea.obra
-        obra = {"tipo": o.tipo, "x": o.x, "y": o.y, "progreso": o.progreso, "total": m.OBRAS[o.tipo]["turnos"],
-                "tramo": aldea.muralla if o.tipo == "muralla" else None}
+        obra = {"tipo": o.tipo, "x": o.x, "y": o.y, "progreso": o.progreso, "total": coste_obra(o)["turnos"],
+                "tramo": aldea.muralla if o.tipo == "muralla" else aldea.reforzados if o.tipo == "reforzar" else None,
+                "modelo": _modelo_obra(aldea, o)}
     return {
         "nombre": aldea.nombre,
         "bioma": aldea.bioma,
@@ -70,12 +72,56 @@ def estado_publico(aldea: Aldea) -> dict:
         "poblacion": len(aldea.habitantes),
         "recursos": {"comida": round(aldea.comida), "madera": round(aldea.madera), "piedra": round(aldea.piedra)},
         "muralla": aldea.muralla,
-        "casas": [{"id": c.id, "x": c.x, "y": c.y, "quemada": c.quemada} for c in aldea.casas],
+        "casas": _casas(aldea),
+        "evolucion": _evolucion(aldea),
         "obra": obra,
         "ataque": aldea.ataque if aldea.ataque and t - aldea.ataque["turno"] < TURNOS_ATAQUE_VISIBLE else None,
         "arboles_cortados": {i: round(aldea.mapa.arboles[p], 2) for i, p in enumerate(arboles) if aldea.mapa.arboles[p] < 1},
         "habitantes": [_habitante(aldea, h) for h in aldea.habitantes.values()],
         "sucesos": [{"turno": s.turno, "tipo": s.tipo, "texto": s.texto} for s in aldea.cronica[-30:]],
+    }
+
+
+# Edificios que se dibujan como tales (los huertos nuevos se dibujan como campo).
+DIBUJADOS = [n for n in EDIFICIOS if n != "huertos"]
+
+
+def _casas(aldea: Aldea) -> list[dict]:
+    """Las casas y, detrás, los edificios de la evolución, con el modelo con el que se dibujan."""
+    casas = [{"id": c.id, "x": c.x, "y": c.y, "quemada": c.quemada, "estado": round(c.estado),
+              "modelo": "casa_piedra" if c.piedra else None} for c in aldea.casas]
+    for i, n in enumerate(DIBUJADOS):
+        if n in aldea.edificios:
+            x, y = aldea.sitio(n)
+            casas.append({"id": 1000 + i, "x": x, "y": y, "quemada": False, "estado": round(aldea.edificios[n]),
+                          "modelo": n})
+    return casas
+
+
+def _modelo_obra(aldea: Aldea, o) -> str | None:
+    if o.tipo in ("edificio", "reparar") and o.nombre:
+        return o.nombre if o.nombre != "huertos" else None
+    if o.tipo == "casa_piedra":
+        return "casa_piedra"
+    return None
+
+
+def _evolucion(aldea: Aldea) -> dict:
+    """Etapa, edificios con su estado, mejoras y la última decisión del consejo de la aldea."""
+    return {
+        "etapa": aldea.etapa, "nombre": ETAPAS[aldea.etapa], "etapas": len(ETAPAS),
+        "edificios": [{"id": n, "nombre": EDIFICIOS[n]["nombre"], "estado": round(e), "efecto": EDIFICIOS[n]["efecto"]}
+                      for n, e in aldea.edificios.items()],
+        "pendientes": [{"id": n, "nombre": EDIFICIOS[n]["nombre"], "efecto": EDIFICIOS[n]["efecto"]} for n in aldea.disponibles()],
+        "plan": EDIFICIOS[aldea.plan]["nombre"] if aldea.plan else None,
+        "reforzados": aldea.reforzados,
+        "casas_piedra": sum(1 for c in aldea.casas if c.piedra),
+        "faroles": [aldea.sitio_farol(k) for k in range(aldea.faroles)],
+        "huertos": aldea.rect_huertos() if "huertos" in aldea.edificios else None,
+        "arboles_quitados": [i for i, p in enumerate(sorted(aldea.mapa.arboles)) if p in set(aldea.arboles_quitados)],
+        "consejo": aldea.consejo or None,
+        "invierno_duro": aldea.invierno_duro,
+        "obra": aldea.estado().obra if aldea.obra else None,
     }
 
 

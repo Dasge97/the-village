@@ -3,6 +3,23 @@
 
 export const VERSIONES = [
   {
+    version: "3.0",
+    fecha: "25-10-2026",
+    titulo: "Una evolución larga",
+    cambios: [
+      "Las aldeas crecen por etapas. Con la muralla completa construyen pozo, granero, taller, torre de vigía y huertos nuevos.",
+      "Después llegan el almacén de piedra, el templo, el dojo y el mercado. Al final mejoran lo que tienen: casas de piedra, muralla reforzada y faroles.",
+      "Cada edificio hace algo y sale en el mapa. Con los años se estropea y hay que repararlo.",
+      "Cada estación, el consejo de la aldea elige la siguiente obra o una fiesta. Lo decide Jev sin gastar más: sale del presupuesto de consejos.",
+      "Bodas, inviernos duros y caravanas del mercado con lo que sobra.",
+      "Pueblos, villas y ciudades tienen oro e impuestos, nueve edificios nuevos, avances que investigar y monumentos que tardan años.",
+      "Hay descontento, protestas, revueltas y elecciones, y sucesos grandes como terremotos, inundaciones, la peste o un cometa.",
+      "Los vecinos se alían, se hacen rivales con escaramuzas o pagan tributo a una ciudad. Se ve en el mapa del mundo.",
+      "En Historia de cada aldea se ve su etapa y el estado de sus edificios. En Habitantes de los asentamientos grandes, su oro, avances, monumentos y relaciones.",
+      "El panel de administración puede acelerar el mundo hasta ×1000.",
+    ],
+  },
+  {
     version: "2.2",
     fecha: "25-10-2026",
     titulo: "Móvil más limpio e instalable",

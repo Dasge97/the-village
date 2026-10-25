@@ -22,6 +22,7 @@ import asyncio
 import mimetypes
 import os
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -58,8 +59,16 @@ def crear_app(mundo: Mundo) -> FastAPI:
             except Exception:
                 clientes.pop(ws, None)
 
+    enviado: dict[int, float] = {}               # cuándo se mandó el último estado de cada asentamiento
+
     def al_avanzar(aldea: Aldea, n: int) -> None:
         # Se llama desde el hilo del mundo; el estado se calcula aquí y se envía en el bucle de la web.
+        # Con el mundo muy acelerado no se manda cada turno: como mucho unos 7 estados por segundo.
+        if mundo.segundos_por_turno < 0.15:
+            ahora = time.monotonic()
+            if ahora - enviado.get(n, 0.0) < 0.15:
+                return
+            enviado[n] = ahora
         if bucle_web and n in clientes.values():
             with mundo.cerrojo:
                 estado = estado_web(aldea)
@@ -68,8 +77,9 @@ def crear_app(mundo: Mundo) -> FastAPI:
     def estado_web(a) -> dict:
         # La duración de un turno es la de ahora (el mundo se puede acelerar desde el panel de
         # administración); la web la usa para que los habitantes anden a la velocidad buena.
-        return {**estado_de(a), "segundos_por_turno": mundo.segundos_por_turno or m.TURNO_SEGUNDOS,
-                "pausado": mundo.ajustes["pausado"], "mundo": mundo.resumen()}
+        extra = {"relaciones": mundo.relaciones_de(a.id)} if isinstance(a, Grande) else {}
+        return {**estado_de(a), "segundos_por_turno": max(0.15, mundo.segundos_por_turno),
+                "pausado": mundo.ajustes["pausado"], "mundo": mundo.resumen(), **extra}
 
     def elegir(n: int):
         a = mundo.asentamiento(n)

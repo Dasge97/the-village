@@ -7,7 +7,7 @@ Every villager decides their life with Jev. You watch it live in the browser.
 
 **English** · [Español](README.es.md)
 
-[![Version](https://img.shields.io/badge/version-2.2-2ea44f)](web/src/versiones.js)
+[![Version](https://img.shields.io/badge/version-3.0-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -59,6 +59,10 @@ The interface and the game texts are in Spanish.
 - **The world grows:** when a village is full, someone leaves and founds another. Several villages
   give rise to a town (*pueblo*), several towns to a large town (*villa*), several large towns to
   a city (*ciudad*). Their councils also decide with Jev.
+- **A long evolution:** each village goes through four stages of buildings (well, granary,
+  workshop, temple, dojo, market…) that wear out and need repairs. Towns and cities have gold and
+  taxes, research, monuments, elections and revolts, and they make alliances, rivalries or pay
+  tribute. All of this is rules: Jev makes no extra calls.
 - **Dangers and life:** monster attacks you can see on the map, spreading epidemics, fires, trade
   caravans, weather and seasons.
 - **Everything live on the web:** pixel-art map, a sheet for every villager, family tree, history
@@ -174,7 +178,7 @@ From the admin panel you can change these, and they are saved with the game:
 
 | Setting | Values |
 |---|---|
-| Speed | ×1 (one turn every 10 s, one world year per real day), ×2, ×5, ×10, ×30, ×60 |
+| Speed | ×1 (one turn every 10 s, one world year per real day), ×2, ×5, ×10, ×30, ×60, ×300, ×1000 |
 | Pause | Yes or no |
 | Jev limit | Dollars per day (0.30 at start): 60 % for villagers, 40 % for councils |
 | Jev | On or off |
