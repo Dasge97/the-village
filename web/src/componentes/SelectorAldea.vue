@@ -5,7 +5,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import Icono from "./Icono.vue";
 import { cambiarAldea, ir, ruta } from "../ruta.js";
 
-defineProps({ nombre: String });
+defineProps({ nombre: String, compacto: Boolean });
 const abierto = ref(false);
 const TIPO = { aldea: "Aldea", pueblo: "Pueblo", villa: "Villa", ciudad: "Ciudad" };
 const aldeas = ref([]);
@@ -27,9 +27,9 @@ function elegir(a) {
 </script>
 
 <template>
-  <div class="selector">
+  <div class="selector" :class="{ compacto }">
     <button type="button" class="actual" :aria-expanded="abierto" aria-haspopup="listbox" @click="abierto = !abierto; cargar()">
-      <span class="nombre">{{ nombre || "La aldea" }}</span><Icono nombre="desplegar" :tamano="16" />
+      <span class="nombre">{{ nombre || "La aldea" }}</span><Icono nombre="desplegar" :tamano="compacto ? 14 : 16" />
     </button>
     <div v-if="abierto" class="lista flotante" role="listbox" aria-label="Aldeas del mundo">
       <p class="titulo">Asentamientos más poblados</p>
@@ -57,6 +57,8 @@ function elegir(a) {
   font-family: var(--font-pixel); font-size: var(--text-xl); font-weight: 600; letter-spacing: 0.02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(360px, 40vw);   /* «Villa de Mizuno del Norte» no parte la barra */
 }
+.compacto, .compacto .actual { min-width: 0; max-width: 100%; }
+.compacto .nombre { font-size: var(--text-base); max-width: 100%; }
 .lista {
   position: absolute; top: calc(100% + 18px); left: calc(-1 * var(--space-4)); z-index: 40; width: 300px;
   display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2);

@@ -7,7 +7,7 @@ Every villager decides their life with Jev. You watch it live in the browser.
 
 **English** · [Español](README.es.md)
 
-[![Version](https://img.shields.io/badge/version-2.1-2ea44f)](web/src/versiones.js)
+[![Version](https://img.shields.io/badge/version-2.2-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -65,6 +65,7 @@ The interface and the game texts are in Spanish.
   year by year, and a world map with every settlement.
 - **Controlled spending:** Jev has a daily dollar limit. When it runs out, the rules decide and
   the villager's sheet says so.
+- **Installable as an app** on phones and desktops, with its own icon.
 - **Admin panel** behind a password: speed up or pause the world, see Jev's spending and change
   its limit.
 

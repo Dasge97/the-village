@@ -3,6 +3,18 @@
 
 export const VERSIONES = [
   {
+    version: "2.2",
+    fecha: "25-10-2026",
+    titulo: "Móvil más limpio e instalable",
+    cambios: [
+      "En el móvil, la barra de arriba es una sola línea baja: nombre, año y hora, gente del mundo y recursos.",
+      "El año del mundo se ve siempre, también en el móvil y en pantallas medianas.",
+      "Las cifras grandes se abrevian («311 mil», «1,7 M») para que la barra no se salga de la pantalla.",
+      "En el móvil se acerca el mapa pellizcando; los botones de zoom dejan sitio y la barra de abajo es más baja.",
+      "Icono nuevo con una casa de la aldea, y se puede instalar como aplicación en el móvil y en el ordenador.",
+    ],
+  },
+  {
     version: "2.1",
     fecha: "24-10-2026",
     titulo: "Panel de administración",

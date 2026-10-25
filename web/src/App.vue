@@ -88,6 +88,7 @@ const panel = computed(() => {
 
     <BarraSuperior :aldea="conexion.aldea" :conectado="conexion.fase === 'conectado'" :pequeno="pequeno" @menu="menu = !menu" />
     <div v-if="menu && pequeno" class="menu flotante">
+      <p v-if="conexion.aldea" class="dato numero">Muralla: {{ conexion.aldea.muralla }} de 20 tramos</p>
       <button type="button" class="opcion" @click="ir('mundo'); menu = false"><Icono nombre="mapa" />Mapa del mundo</button>
       <button type="button" class="opcion" @click="ir('info'); menu = false"><Icono nombre="info" />Qué es La aldea</button>
       <button type="button" class="opcion" :aria-pressed="sonido.activo" @click="alternarSonido">
@@ -163,11 +164,13 @@ const panel = computed(() => {
   border: none; border-radius: var(--radius-md); background: transparent; color: inherit; font: inherit; cursor: pointer;
 }
 .menu .opcion:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.menu .dato { margin: 0 var(--space-2); font-size: var(--text-sm); color: var(--panel-texto-suave); }
 .menu .titulo { margin: var(--space-2) 0 0; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--panel-texto-suave); }
 
 @media (max-width: 760px) {
-  .resumen-arriba { top: 64px; width: calc(100% - 16px); }
-  .abajo { left: var(--space-2); right: var(--space-2); bottom: calc(76px + var(--alto-estado)); }
+  .resumen-arriba { top: 60px; width: calc(100% - 16px); max-width: none; }
+  .menu { top: 58px; }
+  .abajo { left: var(--space-2); right: var(--space-2); bottom: calc(68px + var(--alto-estado)); }
   .tarjeta-abajo { width: 100%; }
 }
 </style>

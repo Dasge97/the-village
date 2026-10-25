@@ -34,8 +34,11 @@ onBeforeUnmount(() => escena?.destruir());
   <div ref="lienzo" class="lienzo" role="img" aria-label="Mapa de la aldea visto desde arriba, con sus habitantes moviéndose en directo"></div>
   <!-- En el móvil, con un panel abierto, el zoom se esconde: se transparentaba a través del panel. -->
   <div v-if="listo && !(pequeno && panelAbierto)" class="zoom flotante" :class="{ pequeno }">
-    <button type="button" class="boton-icono" aria-label="Acercar" @click="escena.acercar()"><Icono nombre="mas" /></button>
-    <button type="button" class="boton-icono" aria-label="Alejar" @click="escena.alejar()"><Icono nombre="menos" /></button>
+    <!-- En el móvil se acerca pellizcando: solo queda «Ver toda la aldea». -->
+    <template v-if="!pequeno">
+      <button type="button" class="boton-icono" aria-label="Acercar" @click="escena.acercar()"><Icono nombre="mas" /></button>
+      <button type="button" class="boton-icono" aria-label="Alejar" @click="escena.alejar()"><Icono nombre="menos" /></button>
+    </template>
     <button type="button" class="boton-icono" aria-label="Ver toda la aldea" title="Ver toda la aldea"
             @click="emit('dejarDeSeguir'); escena.verTodo()"><Icono nombre="todo" /></button>
   </div>
@@ -49,5 +52,5 @@ onBeforeUnmount(() => escena?.destruir());
   position: absolute; right: 20px; bottom: calc(172px + var(--alto-estado)); z-index: 10;
   display: flex; flex-direction: column; gap: 2px; padding: var(--space-1); border-radius: var(--radius-md);
 }
-.zoom.pequeno { right: var(--space-2); bottom: calc(168px + var(--alto-estado)); }
+.zoom.pequeno { right: var(--space-2); bottom: calc(156px + var(--alto-estado)); padding: 0; opacity: 0.9; }
 </style>

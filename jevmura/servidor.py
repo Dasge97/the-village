@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import mimetypes
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -41,6 +42,7 @@ def estado_de(a) -> dict:
     return estado_grande(a) if isinstance(a, Grande) else estado_publico(a)
 
 WEB = Path(__file__).resolve().parent.parent / "web" / "dist"
+mimetypes.add_type("application/manifest+json", ".webmanifest")   # el manifest de la aplicación instalable
 
 
 def crear_app(mundo: Mundo) -> FastAPI:

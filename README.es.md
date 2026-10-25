@@ -7,7 +7,7 @@ Cada habitante de una aldea decide su vida con Jev. Lo ves en directo en el nave
 
 [English](README.md) · **Español**
 
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-2.1-2ea44f)](web/src/versiones.js)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-2.2-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -62,6 +62,7 @@ El segundo objetivo es ver crecer un mundo entero sin nada escrito de antemano: 
   historia año a año y mapa del mundo con todos los asentamientos.
 - **Gasto controlado:** Jev tiene un límite de dólares al día. Si se acaba, deciden las reglas
   y la ficha lo dice.
+- **Se instala como aplicación** en el móvil y en el ordenador, con su icono.
 - **Panel de administración** con contraseña: acelerar o pausar el mundo, ver el gasto de Jev y
   cambiar su límite.
 
