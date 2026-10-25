@@ -3,6 +3,15 @@
 
 export const VERSIONES = [
   {
+    version: "3.2.1",
+    fecha: "25-10-2026",
+    titulo: "Menos rivales",
+    cambios: [
+      "Con el mapa del mundo lleno, casi todos los vecinos acababan siendo rivales y sus líneas tapaban el mapa.",
+      "Ahora dos vecinos llenos compiten menos por el sitio, y la rivalidad vuelve a ser rara.",
+    ],
+  },
+  {
     version: "3.2",
     fecha: "25-10-2026",
     titulo: "Cada sitio con su forma",

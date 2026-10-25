@@ -68,7 +68,9 @@ class Relaciones:
             if ga.bioma != gb.bioma:
                 v += 2                                    # se necesitan: lo que a uno le sobra al otro le falta
             if ga.tipo == gb.tipo and ga.poblacion > 0.8 * ga.tope and gb.poblacion > 0.8 * gb.tope:
-                v -= 3                                    # los dos llenos: compiten por el sitio de alrededor
+                # Los dos llenos compiten por el sitio de alrededor. Poco: con más, en un mundo lleno casi
+                # todos los vecinos acababan siendo rivales (media de −30 frente al −40 de la rivalidad).
+                v -= 1
             v += rng.uniform(-4, 4)
             self.relaciones[k] = max(-100.0, min(100.0, v))
             self._cambios_de_relacion(a, b, k)

@@ -775,7 +775,8 @@ asentamiento nuevo tiene un formato y un tamaño (`jevmura/motor/formatos.py`):
   incendio (1/1.200, desde villa), sequía larga (1/1.500), peste (1/3.000, desde villa), cometa
   (1/4.000), mercader extranjero (1/400) y veta de mina (1/1.500).
 - Relaciones, una vez por estación, entre vecinos a 3 zonas o menos. Alianza con 60 o más (se
-  rompe por debajo de 20) y rivalidad con −40 o menos. Entre rivales, una escaramuza el 6 % de
+  rompe por debajo de 20) y rivalidad con −40 o menos. Dos vecinos del mismo tipo y llenos restan
+  1 punto por estación (en la 3.2 restaban 3, y con el mapa lleno casi todos eran rivales). Entre rivales, una escaramuza el 6 % de
   las estaciones: el que pierde pierde el 0,4 % de su gente y el 5 % de sus recursos. Una villa o
   ciudad puede exigir tributo a un pueblo vecino 20 veces más pequeño y 5 veces más débil: el 15 %
   del oro y el 5 % de la comida cada estación, hasta que el pueblo se rebela.
