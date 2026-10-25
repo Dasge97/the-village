@@ -1,4 +1,4 @@
-"""El mapa del mundo: 24 × 24 zonas, cada una con un terreno fijo que sale de la semilla, y los
+"""El mapa del mundo: 48 × 48 zonas, cada una con un terreno fijo que sale de la semilla, y los
 nombres de los asentamientos nuevos."""
 
 from __future__ import annotations
@@ -6,8 +6,8 @@ from __future__ import annotations
 import math
 import random
 
-LADO = 24
-CENTRO = (12, 12)
+LADO = 48                                   # antes de la 3.3, 24 (se migra al cargar)
+CENTRO = (24, 24)
 
 # Nombres japoneses de sitio para los asentamientos nuevos («Aldea de Mizuno»).
 NOMBRES = [

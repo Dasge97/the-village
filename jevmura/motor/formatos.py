@@ -32,8 +32,8 @@ from .modelos import TRAMOS_MURALLA
 FORMATOS_ALDEA = ["rio", "camino", "lago", "claro"]
 # Con qué probabilidad sale cada formato según el terreno (el resto, a partes iguales).
 PREFERENCIAS = {"desierto": {"lago": 3}, "bosque": {"claro": 3}, "pantano": {"lago": 2}, "nieve": {"claro": 2}}
-TAMANOS = {"aldea": ((60, 72), (44, 54)), "pueblo": ((90, 100), (66, 74)),
-           "villa": ((120, 132), (88, 98)), "ciudad": ((152, 166), (112, 122))}
+TAMANOS = {"aldea": ((60, 72), (44, 54))}
+ZONA = (96, 72)          # casillas de una zona del mundo; un pueblo la llena, una villa ocupa 2 × 2
 SOLARES = {"aldea": 12, "pueblo": 0, "villa": 0, "ciudad": 0}
 # Lo que ocupa cada edificio de la evolución (ancho, alto) en casillas, contando desde su casilla
 # de abajo en el centro.
@@ -260,10 +260,14 @@ def _molino(p: _Plano, cerca: tuple[int, int]) -> tuple[int, int] | None:
 
 # ---- el mapa ----
 
-def generar(semilla: int, bioma: str, formato: str, tipo: str = "aldea") -> Mapa:
+def generar(semilla: int, bioma: str, formato: str, tipo: str = "aldea", huella: int = 1) -> Mapa:
+    """`huella`: lado en zonas de un pueblo, villa o ciudad; su mapa mide huella × una zona."""
     rng = random.Random(semilla * 104729 + sum(map(ord, formato)))
-    (a0, a1), (h0, h1) = TAMANOS[tipo]
-    ancho, alto = rng.randint(a0, a1), rng.randint(h0, h1)
+    if tipo == "aldea":
+        (a0, a1), (h0, h1) = TAMANOS[tipo]
+        ancho, alto = rng.randint(a0, a1), rng.randint(h0, h1)
+    else:
+        ancho, alto = ZONA[0] * huella, ZONA[1] * huella
     p = _Plano(rng, ancho, alto)
     espejo = rng.random() < 0.5                       # muchos formatos salen al revés que otros
     cx, cy = ancho // 2, alto // 2
@@ -297,19 +301,19 @@ def generar(semilla: int, bioma: str, formato: str, tipo: str = "aldea") -> Mapa
         direcciones = [(0, 1), (-1, 0)] if espejo else [(0, -1), (1, 0)]
     elif formato == "pueblo":
         _rio_vertical(p, ancho - 10 if not espejo else 7)
-        rx, ry = 22, 17
+        rx, ry = round(ancho * 0.3), round(alto * 0.3)
         figura = lambda dx, dy: abs(dx) <= rx and abs(dy) <= ry and abs(dx) + abs(dy) <= 1.5 * rx
         direcciones = [(1, 0), (-1, 0), (0, 1), (0, -1)]
     elif formato == "villa":
         _rio_vertical(p, ancho - 12 if not espejo else 9)
-        rx, ry = 34, 24
+        rx, ry = round(ancho * 0.32), round(alto * 0.32)
         figura = lambda dx, dy: abs(dx) <= rx and abs(dy) <= ry
         direcciones = [(1, 0), (-1, 0), (0, 1), (0, -1)]
     else:  # ciudad
         _rio_vertical(p, ancho - 14 if not espejo else 11)
-        rx, ry = 50, 38
+        rx, ry = round(ancho * 0.33), round(alto * 0.33)
         figura = lambda dx, dy: abs(dx) <= rx and abs(dy) <= ry
-        ri, rj = 22, 16
+        ri, rj = round(rx * 0.45), round(ry * 0.45)
         figura_interior = lambda dx, dy: abs(dx) <= ri and abs(dy) <= rj
         direcciones = [(1, 0), (-1, 0), (0, 1), (0, -1)]
     cx = max(rx + 3, min(ancho - rx - 4, cx))

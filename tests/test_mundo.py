@@ -130,23 +130,45 @@ def test_cuatro_aldeas_cerca_fundan_un_pueblo_que_crece_y_decide(tmp_path):
     assert {a["tipo"] for a in otra.publico()["asentamientos"]} == {"aldea", "pueblo"}
 
 
-def test_tres_pueblos_cerca_fundan_una_villa_y_tres_villas_una_ciudad(tmp_path):
-    from jevmura.mundo.mundo import distancia
-
+def test_un_pueblo_lleno_sube_a_villa_absorbiendo_a_sus_vecinos_y_la_villa_a_ciudad(tmp_path):
     mundo = Mundo(str(tmp_path / "mundo.db"), semilla=13, segundos_por_turno=0)
+    x, y = mundo.meta[1]["zona"]
+    a = mundo.fundar_grande("pueblo", (x + 3, y), [25] * 380, [1])
+    vecino = mundo.fundar_grande("pueblo", (x + 4, y), [25] * 200, [1])
+    zona_a, zona_v = mundo.meta[a]["zona"], mundo.meta[vecino]["zona"]
+    assert max(abs(zona_a[0] - zona_v[0]), abs(zona_a[1] - zona_v[1])) == 1
+    mundo._ascensos()
+    assert mundo.tipo(a) == "villa" and mundo.huella(a) == 2 and vecino not in mundo.meta
+    assert mundo.grandes[a].poblacion == 580 and mundo.meta[a]["nombre"].startswith("Villa de ")
+    assert len([z for z, i in mundo.zonas_ocupadas().items() if i == a]) == 4
+    assert any("primera villa del mundo" in m["texto"] for m in mundo.publico()["momentos"])
+    mundo.grandes[a].sumar([25] * 3500)
+    mundo._ascensos()
+    assert mundo.tipo(a) == "ciudad" and mundo.huella(a) == 3 and len(mundo.grandes[a].mapa.casillas[0]) == 3 * 96
+
+
+def test_un_pueblo_vacio_dos_anos_se_abandona_y_su_zona_queda_libre(tmp_path):
+    mundo = Mundo(str(tmp_path / "mundo.db"), semilla=17, segundos_por_turno=0)
     centro = tuple(mundo.meta[1]["zona"])
-    pueblos = [mundo.fundar_grande("pueblo", centro, [25] * 300, [1]) for _ in range(3)]
-    assert all(pueblos)
-    mundo._crecer()
-    villas = [i for i in mundo.meta if mundo.tipo(i) == "villa"]
-    assert len(villas) == 1 and mundo.grandes[villas[0]].poblacion == 3 * 45
-    assert all(distancia(mundo.meta[v]["zona"], centro) <= 6 for v in villas)
-    for _ in range(2):
-        mundo.fundar_grande("villa", centro, [25] * 3000, pueblos)
-    mundo._crecer()
-    ciudades = [i for i in mundo.meta if mundo.tipo(i) == "ciudad"]
-    assert len(ciudades) == 1 and mundo.grandes[ciudades[0]].nombre.startswith("Ciudad de ")
-    assert any("primera ciudad del mundo: la Ciudad" in m["texto"] for m in mundo.publico()["momentos"])
+    p = mundo.fundar_grande("pueblo", centro, [25] * 5, [1])
+    otro = mundo.fundar_grande("pueblo", centro, [25] * 300, [1])
+    zona = tuple(mundo.meta[p]["zona"])
+    mundo.grandes[p].vacio = 2 * m.DIAS_POR_ANO
+    mundo._abandonos()
+    assert p not in mundo.meta and zona not in mundo.zonas_ocupadas()
+    assert mundo.grandes[otro].poblacion == 305
+
+
+def test_un_mundo_de_24_zonas_se_mueve_al_centro_del_de_48(tmp_path):
+    ruta = str(tmp_path / "mundo.db")
+    mundo = Mundo(ruta, semilla=18, segundos_por_turno=0)
+    mundo.guardar()
+    datos = mundo.global_.cargar()
+    datos["asentamientos"]["1"]["zona"] = [12, 12]
+    del datos["lado"]
+    mundo.global_.guardar(datos)
+    otro = Mundo(ruta, semilla=18, segundos_por_turno=0)
+    assert otro.meta[1]["zona"] == [24, 24]
 
 
 def test_las_caravanas_llevan_comida_al_que_le_falta(tmp_path):
@@ -165,13 +187,13 @@ def test_el_mundo_guarda_una_foto_por_ano_y_los_grandes_momentos(tmp_path):
     mundo = Mundo(str(tmp_path / "mundo.db"), semilla=15, segundos_por_turno=0)
     centro = tuple(mundo.meta[1]["zona"])
     mundo._crecer()
-    mundo.fundar_grande("pueblo", centro, [25] * 1200, [1])
+    mundo.fundar_grande("pueblo", centro, [25] * 300, [1])
     mundo.aldeas[1].turno += m.TURNOS_POR_ANO
     mundo._crecer()
     anual = mundo.publico()["anual"]
     assert [f["ano"] for f in anual] == [1, 2]
-    assert anual[-1]["gente"]["pueblo"] == 1200 and anual[-1]["asentamientos"]["aldea"] == 1
-    assert any(t["texto"] == "El mundo llega a 1.000 personas." for t in mundo.publico()["momentos"])
+    assert anual[-1]["gente"]["pueblo"] == 300 and anual[-1]["asentamientos"]["aldea"] == 1
+    assert any(t["texto"] == "El mundo llega a 100 personas." for t in mundo.publico()["momentos"])
     mundo.guardar()
     otro = Mundo(str(tmp_path / "mundo.db"), semilla=15, segundos_por_turno=0)
     assert otro.anual == anual
@@ -181,4 +203,5 @@ def test_cuando_se_acaban_los_nombres_dicen_donde_quedan(tmp_path):
     mundo = Mundo(str(tmp_path / "mundo.db"), semilla=16, segundos_por_turno=0)
     for i, n in enumerate(zonas.NOMBRES):
         mundo.meta[100 + i] = {"nombre": f"Pueblo de {n}"}
-    assert mundo._nombre_nuevo("villa") == f"Villa de {zonas.NOMBRES[0]}{zonas.COLETILLAS[0]}"
+    nombre = mundo._nombre_nuevo("villa")
+    assert nombre.startswith("Villa de ") and any(nombre.endswith(c) for c in zonas.COLETILLAS)

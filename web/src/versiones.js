@@ -3,6 +3,20 @@
 
 export const VERSIONES = [
   {
+    version: "3.3",
+    fecha: "25-10-2026",
+    titulo: "Ciudades de verdad",
+    cambios: [
+      "El mundo es cuatro veces más grande: 48 × 48 zonas. Todo lo que había se ha movido al centro.",
+      "Las villas y las ciudades ya no se fundan aparte: un pueblo lleno sube a villa creciendo sobre las zonas de al lado, y absorbe a los pueblos que vivían allí.",
+      "Una villa llena sube a ciudad, y una ciudad llena se hace todavía más grande.",
+      "Un pueblo ocupa una zona entera; una villa, 2 × 2; una ciudad, 3 × 3 o 4 × 4. Para recorrer una ciudad hay que moverse mucho.",
+      "Los asentamientos que se quedan casi vacíos durante dos años se abandonan y su zona queda libre.",
+      "El mapa del mundo marca el cuadrado que ocupa cada villa y cada ciudad.",
+      "Las frases ya dicen «de la Villa» y «de la Ciudad», y los nombres repetidos llevan una coletilla al azar.",
+    ],
+  },
+  {
     version: "3.2.1",
     fecha: "25-10-2026",
     titulo: "Menos rivales",

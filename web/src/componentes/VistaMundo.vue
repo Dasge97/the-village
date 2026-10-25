@@ -68,8 +68,8 @@ const LADO_ZONA = 56;
 function encuadrar() {
   const d = datos.value;
   if (!d?.asentamientos.length) return;
-  const xs = d.asentamientos.map((a) => a.zona[0]);
-  const ys = d.asentamientos.map((a) => a.zona[1]);
+  const xs = d.asentamientos.flatMap((a) => [a.zona[0], a.zona[0] + (a.huella ?? 1) - 1]);
+  const ys = d.asentamientos.flatMap((a) => [a.zona[1], a.zona[1] + (a.huella ?? 1) - 1]);
   vista.x = (Math.min(...xs) + Math.max(...xs)) / 2 + 0.5;
   vista.y = (Math.min(...ys) + Math.max(...ys)) / 2 + 0.5;
   const ancho = Math.max(...xs) - Math.min(...xs) + 5;
@@ -77,6 +77,9 @@ function encuadrar() {
   const c = lienzo.value;
   vista.zoom = Math.max(0.5, Math.min(2.5, Math.min(c.clientWidth / (ancho * LADO_ZONA), c.clientHeight / (alto * LADO_ZONA))));
 }
+
+// Centro de un asentamiento en zonas: el de su cuadrado si ocupa varias.
+const centro = (a) => [a.zona[0] + (a.huella ?? 1) / 2, a.zona[1] + (a.huella ?? 1) / 2];
 
 const aPantalla = (zx, zy) => {
   const c = lienzo.value;
@@ -124,8 +127,8 @@ function dibujar() {
   for (const [a, b] of d.caminos) {
     const p = porId.get(a); const q = porId.get(b);
     if (!p || !q) continue;
-    const [ax, ay] = aPantalla(p.zona[0] + 0.5, p.zona[1] + 0.5);
-    const [bx, by] = aPantalla(q.zona[0] + 0.5, q.zona[1] + 0.5);
+    const [ax, ay] = aPantalla(...centro(p));
+    const [bx, by] = aPantalla(...centro(q));
     g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
   }
   g.setLineDash([]);
@@ -133,8 +136,8 @@ function dibujar() {
   const linea = (a, b, color, ancho, raya) => {
     const p = porId.get(a); const q = porId.get(b);
     if (!p || !q) return;
-    const [ax, ay] = aPantalla(p.zona[0] + 0.5, p.zona[1] + 0.5);
-    const [bx, by] = aPantalla(q.zona[0] + 0.5, q.zona[1] + 0.5);
+    const [ax, ay] = aPantalla(...centro(p));
+    const [bx, by] = aPantalla(...centro(q));
     g.strokeStyle = color; g.lineWidth = ancho; g.setLineDash(raya);
     g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
   };
@@ -144,13 +147,20 @@ function dibujar() {
   g.setLineDash([]);
   // Asentamientos: icono, nombre y población.
   for (const a of d.asentamientos) {
-    const [cx, cy] = aPantalla(a.zona[0] + 0.5, a.zona[1] + 0.5);
+    // Una villa ocupa 2 × 2 zonas y una ciudad, 3 × 3 o 4 × 4: se marca su cuadrado y el icono crece.
+    const h = a.huella ?? 1;
+    const [cx, cy] = aPantalla(...centro(a));
+    if (h > 1) {
+      const [x0, y0] = aPantalla(a.zona[0], a.zona[1]);
+      g.fillStyle = "rgba(255, 240, 200, 0.18)"; g.fillRect(x0 + 2, y0 + 2, h * l - 4, h * l - 4);
+      g.strokeStyle = "rgba(120, 80, 40, 0.5)"; g.lineWidth = 1.5; g.strokeRect(x0 + 2, y0 + 2, h * l - 4, h * l - 4);
+    }
     const [sx, sy, sw, sh] = ICONO[a.tipo] ?? ICONO.aldea;
-    const escala = (l * 0.7) / Math.max(sw, sh);
+    const escala = (l * (h > 1 ? 0.55 * h : 0.7)) / Math.max(sw, sh);
     if (casas.complete) g.drawImage(casas, sx, sy, sw, sh, cx - (sw * escala) / 2, cy - (sh * escala) / 2 - l * 0.08, sw * escala, sh * escala);
     if (a.id === ruta.aldea) {
       g.strokeStyle = "#f2cf5b"; g.lineWidth = 2;
-      g.strokeRect(cx - l / 2 + 2, cy - l / 2 + 2, l - 4, l - 4);
+      g.strokeRect(cx - (h * l) / 2 + 2, cy - (h * l) / 2 + 2, h * l - 4, h * l - 4);
     }
     if (vista.zoom >= 0.7) {
       // Nombre recortado al ancho de la zona y, debajo, la población.
@@ -158,11 +168,11 @@ function dibujar() {
       g.font = `600 ${t}px Inter, sans-serif`;
       g.textAlign = "center";
       g.lineWidth = 3; g.strokeStyle = "rgba(20,30,20,0.85)"; g.fillStyle = "#fff";
-      const nombre = recortar(g, a.nombre, l - 6);
+      const nombre = recortar(g, a.nombre, h * l - 6);
       const poblacion = numero(a.poblacion);
-      g.strokeText(nombre, cx, cy + l / 2 - t - 4); g.fillText(nombre, cx, cy + l / 2 - t - 4);
+      g.strokeText(nombre, cx, cy + (h * l) / 2 - t - 4); g.fillText(nombre, cx, cy + (h * l) / 2 - t - 4);
       g.font = `500 ${t}px Inter, sans-serif`;
-      g.strokeText(poblacion, cx, cy + l / 2 - 3); g.fillText(poblacion, cx, cy + l / 2 - 3);
+      g.strokeText(poblacion, cx, cy + (h * l) / 2 - 3); g.fillText(poblacion, cx, cy + (h * l) / 2 - 3);
     }
   }
 }
@@ -186,7 +196,10 @@ function subir(e) {
   const l = LADO_ZONA * vista.zoom;
   const zx = vista.x + (e.clientX - r.left - r.width / 2) / l;
   const zy = vista.y + (e.clientY - r.top - r.height / 2) / l;
-  const a = datos.value.asentamientos.find((s) => Math.floor(zx) === s.zona[0] && Math.floor(zy) === s.zona[1]);
+  const a = datos.value.asentamientos.find((s) => {
+    const h = s.huella ?? 1;
+    return Math.floor(zx) >= s.zona[0] && Math.floor(zx) < s.zona[0] + h && Math.floor(zy) >= s.zona[1] && Math.floor(zy) < s.zona[1] + h;
+  });
   if (a) cambiarAldea(a.id);
 }
 function rueda(e) {

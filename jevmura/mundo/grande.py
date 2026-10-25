@@ -44,7 +44,7 @@ PRODUCCION = {  # comida, madera, piedra por trabajador y terreno
     "nieve": (0.65, 1.1, 1.1), "pantano": (0.8, 1.0, 0.7),
 }
 COSECHA = {"primavera": 1.0, "verano": 1.15, "otoño": 1.25, "invierno": 0.45}
-NACIMIENTOS = 1.4      # hijos al año por mujer de 18 a 40 años con comida y casa (ajustado: medio millón en ~90 años)
+NACIMIENTOS = 1.1      # hijos al año por mujer de 18 a 40 años con comida y casa (ajustado en la 3.3: unas 600.000 personas en el año 90)
 COMIDA_DIA = 1.75      # por persona y día del mundo, como en las aldeas
 
 
@@ -112,6 +112,8 @@ class Grande(Sociedad):
     monumento: dict | None = None
     hambruna: int = 0
     proxima_eleccion: int = 0
+    huella: int = 1                                    # lado en zonas del mundo: 1, 2 (villa), 3 o 4 (ciudad)
+    vacio: int = 0                                     # días seguidos casi vacío (al llegar a 2 años, se abandona)
 
     def __post_init__(self):
         self.rng = random.Random(self.semilla * 31 + self.turno)
@@ -131,13 +133,13 @@ class Grande(Sociedad):
         Generarlo tarda una décima de segundo, así que solo se hace cuando la web lo pide: con
         cientos de asentamientos, el servidor tardaría minutos en arrancar."""
         if self._mapa is None:
-            self._mapa = generar(self.semilla, self.bioma, formato_de_tipo(self.tipo), self.tipo)
+            self._mapa = generar(self.semilla, self.bioma, formato_de_tipo(self.tipo), self.tipo, self.huella)
         return self._mapa
 
     @property
     def lotes(self):
         if self._lotes is None:
-            self._lotes = lotes(self.mapa, LOTES[self.tipo])
+            self._lotes = lotes(self.mapa, LOTES[self.tipo] * self.huella ** 2 // HUELLA_TIPO[self.tipo] ** 2)
         return self._lotes
 
     # ---- fecha, como en las aldeas ----
@@ -169,7 +171,9 @@ class Grande(Sociedad):
 
     @property
     def tope(self) -> int:
-        return TIPOS[self.tipo]["tope"]
+        """El de su tipo; una ciudad de 4 × 4 zonas admite más gente que una de 3 × 3."""
+        base = TIPOS[self.tipo]["tope"]
+        return round(base * self.huella ** 2 / 9) if self.tipo == "ciudad" and self.huella > 3 else base
 
     @property
     def capacidad(self) -> int:
@@ -201,6 +205,21 @@ class Grande(Sociedad):
     def sumar(self, edades: list[int]) -> None:
         for edad in edades:
             self.edades[max(0, min(EDAD_MAX, int(edad)))] += 1
+
+    def absorber(self, otro: "Grande") -> None:
+        """Se queda con la gente, los recursos, los edificios, el oro y lo aprendido de otro (una fusión)."""
+        self.edades = [a + b for a, b in zip(self.edades, otro.edades)]
+        for r in ("comida", "madera", "piedra", "oro"):
+            setattr(self, r, getattr(self, r) + getattr(otro, r))
+        for e, n in otro.edificios.items():
+            self.edificios[e] = self.edificios.get(e, 0) + n
+        self.avances += [a for a in otro.avances if a not in self.avances]
+        self.monumentos += [x for x in otro.monumentos if x not in self.monumentos]
+
+    def crecer_huella(self, tipo: str, huella: int, nombre: str) -> None:
+        """Sube de tipo o de tamaño: otro tope, otros cargos y un mapa nuevo, más grande."""
+        self.tipo, self.huella, self.nombre = tipo, huella, nombre
+        self._mapa = self._lotes = None
 
     def sacar(self, n: int) -> list[int]:
         """Saca a n personas, sobre todo jóvenes adultos, y devuelve sus edades."""
@@ -236,6 +255,7 @@ class Grande(Sociedad):
         self._notables()
         if self.poblacion > 0.9 * self.tope:
             self.salientes += max(1, round(self.poblacion * 0.004))
+        self.vacio = self.vacio + 1 if self.poblacion < 15 else 0
         corte = self.turno - m.TURNOS_POR_ANO
         self.cronica = [s for s in self.cronica if s.turno > corte]
 
@@ -577,6 +597,7 @@ class Grande(Sociedad):
 def nuevo(id: int, nombre: str, tipo: str, bioma: str, semilla: int, turno: int, edades: list[int]) -> Grande:
     """Un pueblo, villa o ciudad recién fundado, con la gente que llega y casas para ella."""
     g = Grande(id, nombre, tipo, bioma, semilla, turno)
+    g.huella = HUELLA_TIPO[tipo]
     g.sumar(edades)
     g.edificios = {"casa": math.ceil(len(edades) / TIPOS[tipo]["por_casa"]) + 2}
     g.comida = len(edades) * COMIDA_DIA * 20
@@ -586,7 +607,8 @@ def nuevo(id: int, nombre: str, tipo: str, bioma: str, semilla: int, turno: int,
     return g
 
 
-LOTES = {"pueblo": 140, "villa": 300, "ciudad": 600}     # parcelas que se dibujan, como mucho
+LOTES = {"pueblo": 220, "villa": 700, "ciudad": 1500}    # parcelas que se dibujan, como mucho
+HUELLA_TIPO = {"pueblo": 1, "villa": 2, "ciudad": 3}      # lado en zonas al nacer
 
 
 def lotes(mapa, maximo: int = 90) -> list[tuple[int, int]]:
@@ -618,7 +640,7 @@ def lotes(mapa, maximo: int = 90) -> list[tuple[int, int]]:
 
 
 SOCIALES = ("oro", "impuesto", "avances", "investigando", "descontento", "protesta", "monumentos", "monumento",
-            "hambruna", "proxima_eleccion")
+            "hambruna", "proxima_eleccion", "huella", "vacio")
 
 
 def _articulo(edificio: str) -> str:
@@ -631,6 +653,23 @@ def _articulo(edificio: str) -> str:
 
 def _articulo_nombre(nombre: str) -> str:
     return f"la {nombre}" if nombre.startswith(("Villa", "Ciudad")) else f"el {nombre}"
+
+
+def el(nombre: str) -> str:
+    """«el Pueblo de Takada», «la Villa de Ueda»: el nombre con su artículo."""
+    return _articulo_nombre(nombre)
+
+
+def del_(nombre: str) -> str:
+    """«del Pueblo de Takada», «de la Villa de Ueda»."""
+    t = el(nombre)
+    return "del" + t[2:] if t.startswith("el ") else "de " + t
+
+
+def al(nombre: str) -> str:
+    """«al Pueblo de Takada», «a la Villa de Ueda»."""
+    t = el(nombre)
+    return "al" + t[2:] if t.startswith("el ") else "a " + t
 
 
 def _femenino(cargo: str) -> str:

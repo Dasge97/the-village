@@ -756,6 +756,30 @@ asentamiento nuevo tiene un formato y un tamaño (`jevmura/motor/formatos.py`):
 - Una vez publicado, el generador de un formato de aldea no se puede cambiar: las aldeas guardan
   sus árboles por orden y el mapa se vuelve a generar al cargarlas. Un cambio es un formato nuevo.
 
+### Ciudades de verdad: fusiones, abandonos y mundo de 48 × 48 (3.3)
+
+Con 24 × 24 zonas y villas y ciudades fundadas aparte, el mapa del mundo se llenaba de pueblos
+(en una prueba, 491 pueblos y solo 5 ciudades en el año 118) y no quedaba sitio para nada más.
+
+- El mundo pasa a 48 × 48 zonas. Un mundo guardado con 24 se mueve 12 zonas hacia el centro al
+  cargarlo (se guarda `lado`).
+- Cada asentamiento tiene una zona de esquina y un tamaño en zonas (`huella`): aldea y pueblo 1;
+  villa 2 × 2; ciudad 3 × 3 y, llena, 4 × 4 (su tope crece en proporción: unas 107.000 personas).
+- Ascensos, una vez por estación: un pueblo al 85 % de su tope sube a villa y una villa al 85 %, a
+  ciudad. Crece sobre el cuadrado de zonas que más gente tenga y absorbe a los pueblos y villas que
+  hay dentro (gente, recursos, edificios, oro, avances y monumentos). Las aldeas no se absorben:
+  si hay una en medio, se busca otro cuadrado. Conserva su nombre cambiando el tipo («Villa de…»).
+- Las villas y las ciudades ya no se fundan en una zona nueva; la gente que sobra en cualquier
+  asentamiento grande funda pueblos.
+- Abandono: un pueblo, villa o ciudad con menos de 15 personas durante 2 años se abandona y los que
+  quedan se van al más cercano; una aldea vacía durante 2 años, también (salvo La aldea).
+- Cada zona mide 96 × 72 casillas: un pueblo la llena, una villa mide 192 × 144 y una ciudad,
+  288 × 216 o 384 × 288. La web pinta el suelo por trozos de 64 × 64 casillas.
+- Aldeas detalladas: como mucho 60 (antes 40).
+- Natalidad de los asentamientos grandes: 1,1 hijos al año (con las fusiones las ciudades tienen
+  mucho sitio y con 1,4 el mundo pasaba del millón en el año 90). Medido con la simulación rápida:
+  600.000 personas en el año 90, con 9 ciudades, 41 villas y 80 pueblos.
+
 ### Cómo quedó en pueblos, villas y ciudades
 
 - Código: `jevmura/mundo/sociedad.py` (oro, edificios nuevos, avances, sociedad, sucesos y

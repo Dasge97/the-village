@@ -30,14 +30,14 @@ from ..motor.evolucion import INSTRUCCIONES_CONSEJO_ALDEA
 from ..motor.formatos import elegir_formato
 from ..motor.nombres import ASPECTOS as _ASPECTOS
 from . import zonas
-from .grande import Grande
+from .grande import Grande, al, del_, el
 from .grande import nuevo as nuevo_grande
 from .presupuesto import DecisorConPresupuesto, Presupuesto
 from .relaciones import RIVALIDAD, Relaciones, par
 
 SEGUNDA = "Aldea del río"
 SEMILLA_POR_ID = 7777          # la aldea n usa la semilla del mundo + 7777 × (n − 1)
-MAX_ALDEAS = 40                 # aldeas detalladas como mucho; después la gente va a las que tengan sitio
+MAX_ALDEAS = 60                 # aldeas detalladas como mucho; después la gente va a las que tengan sitio
 CRONICA_MUNDO = 500             # sucesos del mundo que se guardan
 VELOCIDADES = [1, 2, 5, 10, 30, 60, 300, 1000]     # las que se pueden elegir en el panel de administración
 COSTE_LLAMADA = 0.000056                 # USD por llamada a Jev, para pasar el gasto máximo a llamadas
@@ -46,13 +46,15 @@ DIAS_DE_GASTO = 60                       # días reales de gasto que se guardan
 SEGUNDOS_ENTRE_GUARDADOS = 60            # con el mundo acelerado no se guarda más de una vez por minuto
 HITOS_POBLACION = [100, 1000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000]
 GRUPO_MINIMO = 25               # gente que se junta en un asentamiento grande antes de irse a otro sitio
-# Cuándo se funda cada tipo grande: cuántos del tipo de abajo hacen falta, a qué distancia (en zonas)
-# y qué parte de su gente se va al nuevo.
+# Cuándo se funda un pueblo: cuántas aldeas hacen falta y a qué distancia (en zonas). Las villas y
+# las ciudades no se fundan: salen de un pueblo o una villa llenos que crecen sobre las zonas de al
+# lado y absorben a quien vive en ellas (ver `_ascensos`).
 FUNDACION = {
     "pueblo": {"de": "aldea", "cuantos": 4, "radio": 3, "parte": None},
-    "villa": {"de": "pueblo", "cuantos": 3, "radio": 4, "parte": 0.15},
-    "ciudad": {"de": "villa", "cuantos": 3, "radio": 7, "parte": 0.10},
 }
+# Para subir: de qué tipo a cuál, con qué tamaño en zonas y lo lleno que tiene que estar.
+ASCENSOS = [("pueblo", "villa", 2, 0.85), ("villa", "ciudad", 3, 0.85), ("ciudad", "ciudad", 4, 0.85)]
+DIAS_ABANDONO = 2 * m.DIAS_POR_ANO          # casi vacío durante 2 años: se abandona
 TEXTO_TIPO = {"aldea": "Aldea", "pueblo": "Pueblo", "villa": "Villa", "ciudad": "Ciudad"}
 ORDEN_TIPOS = ["aldea", "pueblo", "villa", "ciudad"]
 INSTRUCCIONES_CONSEJO = (
@@ -61,8 +63,12 @@ INSTRUCCIONES_CONSEJO = (
     "defensa contra los monstruos y buen ánimo. Cada opción explica lo que consigue.")
 
 
-def distancia(a, b) -> int:
-    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+def distancia(a, b, ha: int = 1, hb: int = 1) -> int:
+    """Zonas que hay entre dos cuadrados de ha y hb zonas de lado con esquina en a y b (0 si se tocan
+    por dentro; entre dos zonas sueltas, la distancia de siempre)."""
+    hueco_x = max(0, max(a[0], b[0]) - min(a[0] + ha - 1, b[0] + hb - 1))
+    hueco_y = max(0, max(a[1], b[1]) - min(a[1] + ha - 1, b[1] + hb - 1))
+    return max(hueco_x, hueco_y)
 
 
 class GuardadoMundo:
@@ -148,6 +154,12 @@ class Mundo(Relaciones):
             os.remove(_ruta_segunda(self.ruta_db))
 
     def _cargar(self, datos: dict) -> None:
+        # Antes de la 3.3 el mundo tenía 24 × 24 zonas: todo se mueve al centro del de 48 × 48.
+        lado = datos.get("lado", 24)
+        if lado != zonas.LADO:
+            mover = (zonas.LADO - lado) // 2
+            for meta in datos["asentamientos"].values():
+                meta["zona"] = [meta["zona"][0] + mover, meta["zona"][1] + mover]
         self.hija = {int(k): v for k, v in datos["hija"].items()}
         self.cronica = datos["cronica"]
         self.anual = datos.get("anual", [])
@@ -216,7 +228,8 @@ class Mundo(Relaciones):
             "lado": zonas.LADO,
             "zonas": [{"x": x, "y": y, "bioma": zonas.bioma(semilla, x, y)} for x, y in sorted(vistas)],
             "asentamientos": [{"id": id, "nombre": meta["nombre"], "tipo": self.tipo(id), "zona": meta["zona"],
-                               "bioma": meta["bioma"], "poblacion": self.poblacion(id)} for id, meta in self.meta.items()],
+                               "huella": self.huella(id), "bioma": meta["bioma"], "poblacion": self.poblacion(id)}
+                              for id, meta in self.meta.items()],
             "caminos": [list(c) for c in self._caminos()],
             "alianzas": [list(par(k)) for k in sorted(self.alianzas)],
             "vasallos": [[v, s] for v, s in self.vasallos.items()],
@@ -232,7 +245,23 @@ class Mundo(Relaciones):
         return {"turno": s[0], "ano": s[0] // m.TURNOS_POR_ANO + 1, "texto": s[1], "id": s[2]}
 
     def zonas_ocupadas(self) -> dict[tuple[int, int], int]:
-        return {tuple(meta["zona"]): id for id, meta in self.meta.items()}
+        """Cada zona ocupada y quién la ocupa (una villa o una ciudad ocupan varias)."""
+        return {z: id for id in self.meta for z in self.celdas(id)}
+
+    def huella(self, id: int) -> int:
+        return self.meta[id].get("huella", 1)
+
+    def celdas(self, id: int) -> list[tuple[int, int]]:
+        x, y = self.meta[id]["zona"]
+        h = self.huella(id)
+        return [(x + dx, y + dy) for dx in range(h) for dy in range(h)]
+
+    def dist(self, i: int, j: int) -> int:
+        """Zonas entre dos asentamientos, contando su tamaño."""
+        return distancia(self.meta[i]["zona"], self.meta[j]["zona"], self.huella(i), self.huella(j))
+
+    def dist_zona(self, i: int, zona) -> int:
+        return distancia(self.meta[i]["zona"], zona, self.huella(i), 1)
 
     # ---- fundar y mudarse ----
 
@@ -253,10 +282,13 @@ class Mundo(Relaciones):
         """«Aldea de Mizuno», «Pueblo de Takada»…: el sitio no se repite entre asentamientos. Cuando se
         acaban los nombres, se les añade dónde quedan: «Villa de Mizuno del Norte»."""
         usados = {meta["nombre"].split(" de ", 1)[-1] for meta in self.meta.values()}
-        for coletilla in ("", *zonas.COLETILLAS):
-            for n in zonas.NOMBRES:
-                if f"{n}{coletilla}" not in usados:
-                    return f"{TEXTO_TIPO[tipo]} de {n}{coletilla}"
+        for n in zonas.NOMBRES:
+            if n not in usados:
+                return f"{TEXTO_TIPO[tipo]} de {n}"
+        # Con los nombres acabados, uno con coletilla al azar (fijo para cada turno).
+        libres = [f"{n}{c}" for c in zonas.COLETILLAS for n in zonas.NOMBRES if f"{n}{c}" not in usados]
+        if libres:
+            return f"{TEXTO_TIPO[tipo]} de {random.Random(self.turno + len(self.meta)).choice(libres)}"
         return f"{TEXTO_TIPO[tipo]} número {len(self.meta) + 1}"
 
     def fundar(self, madre: int) -> int | None:
@@ -294,8 +326,8 @@ class Mundo(Relaciones):
 
     def _grande_con_sitio(self, tipo: str | None, zona, radio: int, menos_de: float = 0.9) -> int | None:
         cerca = [i for i, g in self.grandes.items() if (tipo is None or g.tipo == tipo)
-                 and distancia(self.meta[i]["zona"], zona) <= radio and g.poblacion < menos_de * g.tope]
-        return min(cerca, key=lambda i: distancia(self.meta[i]["zona"], zona)) if cerca else None
+                 and self.dist_zona(i, zona) <= radio and g.poblacion < menos_de * g.tope]
+        return min(cerca, key=lambda i: self.dist_zona(i, zona)) if cerca else None
 
     def _destino(self, origen: int) -> tuple[int | None, bool]:
         """Adónde va quien se marcha de `origen` y si funda una aldea nueva."""
@@ -327,7 +359,7 @@ class Mundo(Relaciones):
                     g = self.grandes[destino]
                     g.sumar([e["edad"]])
                     g.ano_en_curso["llegadas"] += 1
-                    aldea._hito(e["id"], "marcha", f"Se va a vivir al {g.nombre}.")
+                    aldea._hito(e["id"], "marcha", f"Se va a vivir {al(g.nombre)}.")
                     continue
                 nueva = self.aldeas[destino]
                 nueva.recibir(e, aldea.nombre, funda=funda)
@@ -348,7 +380,9 @@ class Mundo(Relaciones):
         for id, g in list(self.grandes.items()):
             if g.salientes:
                 self._repartir(id, g)
+        self._abandonos()
         if (self.turno // m.TURNOS_POR_DIA) % m.DIAS_POR_ESTACION == 0:
+            self._ascensos()
             self._comercio()
             self._comercio_aldeas()
             self._estacion_relaciones()
@@ -402,8 +436,8 @@ class Mundo(Relaciones):
                     rico.oro += cantidad * 0.02 * (1.3 if ga.bioma != gb.bioma else 1.0)
                     setattr(rico, recurso, getattr(rico, recurso) - cantidad)
                     setattr(pobre, recurso, getattr(pobre, recurso) + cantidad)
-                    pobre._cronica("hallazgo", f"Llega una caravana del {rico.nombre} con {cantidad} de {recurso}.")
-                    rico._cronica("obra", f"Sale una caravana con {cantidad} de {recurso} hacia el {pobre.nombre}.")
+                    pobre._cronica("hallazgo", f"Llega una caravana {del_(rico.nombre)} con {cantidad} de {recurso}.")
+                    rico._cronica("obra", f"Sale una caravana con {cantidad} de {recurso} hacia {el(pobre.nombre)}.")
 
     def _comercio_aldeas(self) -> None:
         """Cada estación, una aldea con mercado manda en caravana lo que tiene casi lleno en el almacén
@@ -413,8 +447,7 @@ class Mundo(Relaciones):
             if not a.efecto("mercado") or not a.habitantes:
                 continue
             zona = self.meta[id]["zona"]
-            vecinos = [j for j in self.meta if j != id and distancia(self.meta[j]["zona"], zona) <= 2
-                       and self.poblacion(j) > 0]
+            vecinos = [j for j in self.meta if j != id and self.dist_zona(j, zona) <= 2 and self.poblacion(j) > 0]
             if not vecinos:
                 continue
             for recurso in ("comida", "madera", "piedra"):
@@ -448,10 +481,10 @@ class Mundo(Relaciones):
         enfermos = [i for i, g in self.grandes.items() if g.epidemia]
         for i in enfermos:
             for j, g in self.grandes.items():
-                if j != i and not g.epidemia and distancia(self.meta[i]["zona"], self.meta[j]["zona"]) <= 2:
+                if j != i and not g.epidemia and self.dist(i, j) <= 2:
                     if random.Random(self.turno * 7 + i * 31 + j).random() < 0.04:
                         g.epidemia = random.Random(self.turno + j).randint(3, 6)
-                        g._cronica("enfermedad", f"La epidemia del {self.grandes[i].nombre} llega hasta aquí.")
+                        g._cronica("enfermedad", f"La epidemia {del_(self.grandes[i].nombre)} llega hasta aquí.")
 
     def _fundar_tipo(self, tipo: str, regla: dict) -> None:
         de, radio = regla["de"], regla["radio"]
@@ -490,6 +523,93 @@ class Mundo(Relaciones):
                 self.suceso(f"Nace {articulo} {self.meta[nuevo]['nombre']}, con {len(edades)} personas.", nuevo,
                             grande=tipo == "ciudad")
 
+    # ---- ascensos, fusiones y abandonos ----
+
+    def _ascensos(self) -> None:
+        """Un pueblo lleno sube a villa creciendo sobre las zonas de al lado (2 × 2); una villa llena,
+        a ciudad (3 × 3); una ciudad llena, a 4 × 4. Absorbe a los pueblos y villas que vivían en esas
+        zonas. Las aldeas no se absorben: si hay una en medio, se busca otro lado."""
+        for de, a, lado, lleno in ASCENSOS:
+            candidatos = sorted((i for i, g in self.grandes.items() if g.tipo == de and g.huella == lado - 1
+                                 and g.poblacion >= lleno * g.tope), key=lambda i: -self.grandes[i].poblacion)
+            for id in candidatos:
+                if id in self.grandes:
+                    self._ascender(id, a, lado)
+
+    def _ascender(self, id: int, tipo: str, lado: int) -> bool:
+        g = self.grandes[id]
+        x, y = self.meta[id]["zona"]
+        h = self.huella(id)
+        ocupadas = self.zonas_ocupadas()
+        mejor = None
+        # Todos los cuadrados de `lado` zonas que contienen al asentamiento entero.
+        for ax in range(x + h - lado, x + 1):
+            for ay in range(y + h - lado, y + 1):
+                if ax < 0 or ay < 0 or ax + lado > zonas.LADO or ay + lado > zonas.LADO:
+                    continue
+                dentro = {ocupadas.get((ax + dx, ay + dy)) for dx in range(lado) for dy in range(lado)} - {None, id}
+                # Solo pueblos y villas, y enteros dentro del cuadrado.
+                if any(j in self.aldeas or self.tipo(j) == "ciudad" or not all(
+                        ax <= cx < ax + lado and ay <= cy < ay + lado for cx, cy in self.celdas(j)) for j in dentro):
+                    continue
+                gente = sum(self.poblacion(j) for j in dentro)
+                if mejor is None or gente > mejor[0]:
+                    mejor = (gente, (ax, ay), dentro)
+        if mejor is None:
+            return False
+        _, (ax, ay), absorbidos = mejor
+        nombres = [self.meta[j]["nombre"] for j in sorted(absorbidos)]
+        for j in sorted(absorbidos):
+            g.absorber(self.grandes[j])
+            self._quitar_asentamiento(j)
+        antes = g.nombre
+        nombre = g.nombre if g.tipo == tipo else antes.replace(antes.split(" de ", 1)[0], TEXTO_TIPO[tipo], 1)
+        g.crecer_huella(tipo, lado, nombre)
+        self.meta[id].update({"tipo": tipo, "zona": [ax, ay], "huella": lado, "nombre": nombre})
+        if g.tipo == "ciudad" and lado == 4:
+            texto = f"La {nombre} crece sobre las zonas de alrededor y se hace todavía más grande."
+        else:
+            articulo = "la" if tipo in ("villa", "ciudad") else "el"
+            texto = f"{el(antes)[0].upper()}{el(antes)[1:]} pasa a ser {articulo} {nombre}."
+        if nombres:
+            texto = texto[:-1] + f" y absorbe a {', '.join(nombres)}."
+        primero = sum(1 for i in self.meta if self.tipo(i) == tipo) == 1 and lado == {"villa": 2, "ciudad": 3}.get(tipo)
+        g._cronica("obra", texto)
+        self.suceso(("¡La primera " + tipo + " del mundo! " if primero else "") + texto, id,
+                    grande=primero or tipo == "ciudad")
+        return True
+
+    def _quitar_asentamiento(self, id: int) -> None:
+        """Un asentamiento que desaparece (absorbido o abandonado): su zona queda libre."""
+        self.meta.pop(id, None)
+        self.grandes.pop(id, None)
+        if id in self.aldeas:
+            del self.aldeas[id]
+            self.guardados.pop(id).cerrar()
+        self.hija = {k: v for k, v in self.hija.items() if k != id and v != id}
+        self.vasallos = {v: s for v, s in self.vasallos.items() if id not in (v, s)}
+        self.vigiladas.discard(id)
+
+    def _abandonos(self) -> None:
+        """Un pueblo, villa o ciudad casi vacío durante 2 años se abandona: los que quedan se van al
+        más cercano. Una aldea vacía durante 2 años, también (salvo La aldea, la primera)."""
+        for id, g in list(self.grandes.items()):
+            if g.vacio >= DIAS_ABANDONO:
+                otros = [j for j in self.grandes if j != id]
+                if otros:
+                    destino = min(otros, key=lambda j: self.dist(j, id))
+                    self.grandes[destino].sumar(g.sacar(g.poblacion) + [e for e in range(91) for _ in range(g.edades[e])])
+                self.suceso(f"Se abandona {el(g.nombre)}: ya no queda casi nadie.", id)
+                self._quitar_asentamiento(id)
+        for id, a in list(self.aldeas.items()):
+            if id == 1:
+                continue
+            vacia = getattr(a, "dias_vacia", 0) + 1 if not a.habitantes else 0
+            a.dias_vacia = vacia
+            if vacia >= DIAS_ABANDONO:
+                self.suceso(f"Se abandona {con_articulo(a.nombre)}: hace años que no vive nadie.", id)
+                self._quitar_asentamiento(id)
+
     def _sacar_de_aldea(self, id: int, n: int) -> list[int]:
         """Hasta n jóvenes solteros de una aldea se van al pueblo nuevo. Devuelve sus edades."""
         aldea = self.aldeas[id]
@@ -526,16 +646,16 @@ class Mundo(Relaciones):
         # Sin sitio en otro del mismo tipo: fundar uno nuevo si hay una zona libre cerca; si no, a una
         # villa o ciudad cercana con sitio (tienen topes grandes).
         libre = self._zona_libre(tuple(zona))
-        if len(edades) >= 20 and libre is not None and distancia(libre, zona) <= 3:
-            nuevo = self.fundar_grande(g.tipo, tuple(zona), edades, [id])
+        if len(edades) >= 20 and libre is not None and self.dist_zona(id, libre) <= 3:
+            nuevo = self.fundar_grande("pueblo", tuple(zona), edades, [id])
             if nuevo is not None:
                 g.ano_en_curso["marchas"] += len(edades)
-                self.suceso(f"Gente del {g.nombre} funda el {self.meta[nuevo]['nombre']}.", nuevo)
+                self.suceso(f"Gente {del_(g.nombre)} funda {el(self.meta[nuevo]['nombre'])}.", nuevo)
                 return
         mayores = [i for i, o in self.grandes.items() if ORDEN_TIPOS.index(o.tipo) > ORDEN_TIPOS.index(g.tipo)
-                   and distancia(self.meta[i]["zona"], zona) <= 8 and o.poblacion < 0.9 * o.tope]
+                   and self.dist(i, id) <= 8 and o.poblacion < 0.9 * o.tope]
         if mayores:
-            destino = min(mayores, key=lambda i: distancia(self.meta[i]["zona"], zona))
+            destino = min(mayores, key=lambda i: self.dist(i, id))
             self.grandes[destino].sumar(edades)
             self.grandes[destino].ano_en_curso["llegadas"] += len(edades)
             g.ano_en_curso["marchas"] += len(edades)
@@ -554,7 +674,7 @@ class Mundo(Relaciones):
             aldea.recibir({"id": 0, "nombre": "", "sexo": sexo, "edad": edad, "oficio": None,
                            "caracter": rng.choice(m.CARACTERES), "aspecto": rng.choice(_ASPECTOS[sexo])},
                           g.nombre, funda=not aldea.habitantes)
-        self.suceso(f"Gente del {g.nombre} funda {con_articulo(aldea.nombre)}.", nueva)
+        self.suceso(f"Gente {del_(g.nombre)} funda {con_articulo(aldea.nombre)}.", nueva)
 
     def _consejos(self) -> None:
         """Cada estación, el consejo de cada aldea, pueblo, villa o ciudad elige qué hacer: con Jev
@@ -629,6 +749,7 @@ class Mundo(Relaciones):
             "anual": self.anual,
             "ajustes": self.ajustes,
             "gasto": self.gasto,
+            "lado": zonas.LADO,
             **self.datos_relaciones(),
         })
         self.guardado_en = time.time()

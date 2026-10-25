@@ -148,7 +148,7 @@ class Sociedad:
         if mon["dias"] <= 0:
             self.monumentos.append(mon["nombre"])
             self.monumento = None
-            texto = f"Se termina {_con_articulo_mon(mon['nombre'])} del {self.nombre}: {MONUMENTOS[mon['nombre']]['da']}."
+            texto = f"Se termina {_con_articulo_mon(mon['nombre'])} {_del(self.nombre)}: {MONUMENTOS[mon['nombre']]['da']}."
             self._cronica("obra", texto)
             self.momentos.append(texto)
 
@@ -188,7 +188,7 @@ class Sociedad:
         self.impuesto = "bajo"
         self.descontento = 0.3
         self.protesta = 0
-        texto = f"Revuelta en el {self.nombre}: la gente echa al consejo y baja los impuestos."
+        texto = f"Revuelta en {_el(self.nombre)}: la gente echa al consejo y baja los impuestos."
         self._cronica("discusion", texto)
         self.momentos.append(texto)
 
@@ -222,7 +222,7 @@ class Sociedad:
             e = self.rng.choice(especiales)
             self.edificios[e] -= 1
         self.edificios["casa"] = max(1, round(self.edificios.get("casa", 0) * 0.95))
-        texto = f"Un terremoto sacude el {self.nombre}. Se hunden casas y edificios."
+        texto = f"Un terremoto sacude {_el(self.nombre)}. Se hunden casas y edificios."
         self._cronica("incendio", texto)
         self.momentos.append(texto)
 
@@ -237,13 +237,13 @@ class Sociedad:
     def _suceso_peste(self) -> None:
         self.epidemia = max(self.epidemia, 15)
         self.salud = 0.6
-        texto = f"La peste llega al {self.nombre}."
+        texto = f"La peste llega {_al(self.nombre)}."
         self._cronica("enfermedad", texto)
         self.momentos.append(texto)
 
     def _suceso_cometa(self) -> None:
         self.animo = max(0.0, self.animo - 0.15)
-        texto = f"Un cometa cruza el cielo sobre el {self.nombre}. Muchos lo toman por un mal presagio."
+        texto = f"Un cometa cruza el cielo sobre {_el(self.nombre)}. Muchos lo toman por un mal presagio."
         self._cronica("hallazgo", texto)
         self.momentos.append(texto)
 
@@ -325,6 +325,20 @@ def _jefe(cargo: str, sexo: str) -> str:
     if sexo != "m":
         return cargo
     return {"alcalde": "alcaldesa", "gobernador": "gobernadora"}.get(cargo, cargo)
+
+
+def _el(nombre: str) -> str:
+    return f"la {nombre}" if nombre.startswith(("Villa", "Ciudad")) else f"el {nombre}"
+
+
+def _del(nombre: str) -> str:
+    t = _el(nombre)
+    return "del" + t[2:] if t.startswith("el ") else "de " + t
+
+
+def _al(nombre: str) -> str:
+    t = _el(nombre)
+    return "al" + t[2:] if t.startswith("el ") else "a " + t
 
 
 def _con_articulo_mon(nombre: str) -> str:

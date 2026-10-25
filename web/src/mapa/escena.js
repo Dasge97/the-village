@@ -348,11 +348,22 @@ export class Escena {
       }
     }
     this.puentes = this._listaPuentes().map((p) => this._dibujarPuente(suelo, p)).filter(Boolean);
-    // El suelo no cambia: se pinta una vez en una sola textura.
-    const textura = this.app.renderer.generateTexture({ target: suelo, resolution: 1 });
+    // El suelo no cambia: se pinta una vez, por trozos de 64 × 64 casillas (una ciudad mide más de
+    // lo que cabe en una sola textura), y otra vez en pequeño para el minimapa.
+    const TROZO = 64 * C;
+    const W = ancho * C;
+    const H = alto * C;
+    for (let y = 0; y < H; y += TROZO) {
+      for (let x = 0; x < W; x += TROZO) {
+        const frame = new Rectangle(x, y, Math.min(TROZO, W - x), Math.min(TROZO, H - y));
+        const trozo = new Sprite(this.app.renderer.generateTexture({ target: suelo, frame, resolution: 1 }));
+        trozo.position.set(x, y);
+        this.mundo.addChild(trozo);
+      }
+    }
+    this.texturaSuelo = this.app.renderer.generateTexture({ target: suelo, resolution: Math.min(1, 176 / W) });
+    this.escalaSuelo = Math.min(1, 176 / W);
     suelo.destroy({ children: true });
-    this.mundo.addChild(new Sprite(textura));
-    this.texturaSuelo = textura;
   }
 
   // Tablones sobre el río, de la orilla oeste a la este, en las dos filas del camino.
@@ -541,8 +552,8 @@ export class Escena {
     this.mini.ancho = ANCHO_MINI;
     this.mini.alto = Math.round(H * e);
     const marco = new Graphics().roundRect(-4, -4, this.mini.ancho + 8, this.mini.alto + 8, 10).fill({ color: 0x15281f, alpha: 0.85 });
-    const suelo = new Sprite(this.texturaSuelo);
-    suelo.scale.set(e);
+    const suelo = new Sprite(this.texturaSuelo);        // ya hecha en pequeño (ver _dibujarSuelo)
+    suelo.scale.set(e / this.escalaSuelo);
     const arboles = new Graphics();
     for (const [x, y] of this.mapa.arboles) arboles.circle((x + 0.5) * C * e, (y + 0.5) * C * e, 1.6);
     arboles.fill(0x2e6b35);

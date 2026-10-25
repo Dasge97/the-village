@@ -40,10 +40,8 @@ class Relaciones:
                 "alianzas": sorted(self.alianzas), "vasallos": {str(k): v for k, v in self.vasallos.items()}}
 
     def _vecinos_grandes(self) -> list[tuple[int, int]]:
-        from .mundo import distancia
         ids = sorted(self.grandes)
-        zonas = {i: self.meta[i]["zona"] for i in ids}
-        return [(a, b) for n, a in enumerate(ids) for b in ids[n + 1:] if distancia(zonas[a], zonas[b]) <= ALCANCE]
+        return [(a, b) for n, a in enumerate(ids) for b in ids[n + 1:] if self.dist(a, b) <= ALCANCE]
 
     def sumar_relacion(self, a: int, b: int, puntos: float) -> None:
         if a in self.grandes and b in self.grandes:
