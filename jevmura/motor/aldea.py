@@ -184,7 +184,8 @@ class Aldea(Evolucion):
         self._mover_y_actuar(h)
 
     def _necesidades(self, h: Habitante) -> None:
-        h.hambre = min(100.0, h.hambre + (0.1 if h.accion == "dormir" else 0.17))
+        nino = 0.6 if h.edad(self.turno) < 12 else 1.0          # los niños comen menos
+        h.hambre = min(100.0, h.hambre + (0.1 if h.accion == "dormir" else 0.17) * nino)
         gasto = GASTO_ENERGIA.get(h.accion, 0.1)
         if h.accion == "trabajar" and h.oficio == "cantero":
             gasto = 0.5
@@ -375,9 +376,9 @@ class Aldea(Evolucion):
             ops.append(Opcion("explorar", "explorar",
                               "Salir a explorar más allá del bosque durante un día: puede volver con "
                               "recursos o una gema, pero también herido o con las manos vacías"))
-        if len(self.habitantes) >= m.POBLACION_MAXIMA and h.pareja is None and h.edad(self.turno) <= 35:
+        if len(self.habitantes) >= m.POBLACION_EMIGRAR and h.pareja is None and h.edad(self.turno) <= 35:
             ops.append(Opcion("marcharse", "marcharse",
-                              "Marcharse de la aldea para siempre: la aldea está llena y así deja sitio"))
+                              "Marcharse para siempre a fundar otra aldea o a vivir en otra: esta empieza a quedarse pequeña"))
         return ops
 
     def _social(self, tipo: str, descripcion: str, h: Habitante, o: Habitante) -> Opcion:
@@ -938,22 +939,41 @@ class Aldea(Evolucion):
             self._incendio()
         if len(self.habitantes) < 4 and self.rng.random() < 0.3:
             self._forastero()
+        elif len(self.habitantes) < m.POBLACION_EMIGRAR and self.rng.random() < 1 / 36:
+            self._forastero()                 # gente de paso que se queda: así una aldea pequeña no se estanca
         self._emigracion()
+        self._emergencia_comida()
         self.dia_evolucion()
         self._reubicar()
         corte = self.turno - m.TURNOS_POR_ANO
         self.cronica = [s for s in self.cronica if s.turno > corte]
 
+    def _emergencia_comida(self) -> None:
+        """Con comida para menos de 3 días, la mitad de los leñadores y canteros se ponen a sacar
+        comida (a pescar en invierno, cuando no hay cosecha). Lo hacen las reglas, sin esperar a
+        que cada uno lo decida: si no, una aldea con muchos niños se muere de hambre."""
+        if self.estado().dias_comida >= 3:
+            return
+        otros = [h for h in self.habitantes.values() if h.oficio in ("leñador", "cantero") and not h.fuera_hasta]
+        nuevo = "pescador" if self.estacion == "invierno" else "campesino"
+        for h in otros[: (len(otros) + 1) // 2]:
+            self._cronica("oficio", f"Falta comida: {h.nombre} deja de ser {h.de_oficio()} y pasa a ser {h.de_oficio(nuevo)}.", h.id)
+            h.oficio = nuevo
+            h.cambio_oficio = self.turno
+
     def _emigracion(self) -> None:
-        """Con la aldea llena, cada día un joven soltero puede marcharse a buscar sitio, aunque
-        Jev no lo haya decidido. Así las aldeas llenas siempre empujan gente hacia fuera."""
-        if len(self.habitantes) < m.POBLACION_MAXIMA or self.rng.random() >= 0.5:
+        """Desde 14 habitantes, algún día un joven soltero se marcha a fundar otra aldea, aunque Jev
+        no lo haya decidido (con la aldea llena, uno de cada dos días). Sin esto las aldeas se quedan
+        entre 10 y 16 personas y el mundo no se expande nunca."""
+        poblacion = len(self.habitantes)
+        probabilidad = 0.5 if poblacion >= m.POBLACION_MAXIMA else 0.08 if poblacion >= m.POBLACION_EMIGRAR else 0.0
+        if self.rng.random() >= probabilidad:
             return
         if any(h.accion == "marcharse" for h in self.habitantes.values()):
             return
         jovenes = [h for h in self.habitantes.values() if h.oficio and h.pareja is None
                    and m.EDAD_ADULTA <= h.edad(self.turno) <= 35 and not h.fuera_hasta]
-        if jovenes:
+        if len(jovenes) >= 3 or (jovenes and poblacion >= m.POBLACION_MAXIMA):   # quedan solteros para formar parejas
             h = self.rng.choice(jovenes)
             self._poner(h, "marcharse", "reglas", "La aldea está llena: se va a buscar un sitio nuevo",
                         duracion=10**9)
@@ -990,7 +1010,7 @@ class Aldea(Evolucion):
             if p.sexo != "h" or not 18 <= h.edad(self.turno) <= 42 or h.casa != p.casa or h.casa is None:
                 continue
             if (len(self.habitantes) >= m.POBLACION_MAXIMA or ocupadas[h.casa] >= m.CAPACIDAD_CASA
-                    or self.comida < 3 * len(self.habitantes)):
+                    or self.comida < 5 * len(self.habitantes)):
                 continue
             if self.rng.random() < 0.05:
                 hijo = self._nuevo(self.rng.choice("hm"), 0, None, h.casa, padres=(p.id, h.id),

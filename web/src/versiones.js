@@ -3,6 +3,19 @@
 
 export const VERSIONES = [
   {
+    version: "3.1",
+    fecha: "25-10-2026",
+    titulo: "El mundo se expande",
+    cambios: [
+      "Las aldeas ya no se estancan en 8 o 10 personas. En cada casa caben 6 y una pareja puede tener más de dos hijos.",
+      "Desde 14 habitantes, algún joven soltero se marcha a fundar otra aldea, siempre que queden solteros para formar parejas.",
+      "A las aldeas pequeñas llega de vez en cuando un forastero joven.",
+      "Los niños comen menos, y solo nacen niños si hay comida guardada para 5 días por persona.",
+      "Si queda comida para menos de 3 días, la mitad de los leñadores y canteros se ponen a sacar comida.",
+      "Medido sin Jev: en 30 años del mundo hay 10 aldeas y 2 pueblos, y nadie muere de hambre.",
+    ],
+  },
+  {
     version: "3.0",
     fecha: "25-10-2026",
     titulo: "Una evolución larga",

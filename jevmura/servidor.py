@@ -116,7 +116,7 @@ def crear_app(mundo: Mundo) -> FastAPI:
         lista.sort(key=lambda x: (-x["poblacion"], x["id"]))
         if len(lista) == 1:
             lista.append({"id": 2, "nombre": SEGUNDA, "tipo": "aldea", "existe": False, "poblacion": 0,
-                          "poblacion_para_fundarla": m.POBLACION_MAXIMA})
+                          "poblacion_para_fundarla": m.POBLACION_EMIGRAR})
         return lista
 
     @app.get("/api/mundo")

@@ -183,5 +183,5 @@ def motivo(s: Situacion, o: Opcion) -> str:
     if o.tipo == "explorar":
         return "Quiere ver qué hay más allá del bosque"
     if o.tipo == "marcharse":
-        return "En la aldea ya no cabe nadie más"
+        return "Quiere probar suerte en otra aldea"
     return ""

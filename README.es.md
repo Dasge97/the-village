@@ -7,7 +7,7 @@ Cada habitante de una aldea decide su vida con Jev. Lo ves en directo en el nave
 
 [English](README.md) · **Español**
 
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-3.0-2ea44f)](web/src/versiones.js)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-3.1-2ea44f)](web/src/versiones.js)
 [![Jev](https://img.shields.io/badge/Jev-typesafe%2Fjev--1.14-8A2BE2)](https://openrouter.ai)
 [![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)

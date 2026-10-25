@@ -24,7 +24,8 @@ HORA_ATAQUE = 2                 # los monstruos atacan de madrugada
 
 TURNOS_ENTRE_DECISIONES = 30    # 5 minutos reales
 POBLACION_MAXIMA = 20
-CAPACIDAD_CASA = 4
+POBLACION_EMIGRAR = 14          # desde aquí, algún joven se marcha a fundar otra aldea
+CAPACIDAD_CASA = 6              # con 4, una pareja con dos hijos ya no podía tener más
 EDAD_ADULTA = 16
 TRAMOS_MURALLA = 20
 

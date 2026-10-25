@@ -705,6 +705,28 @@ El consejo gana opciones nuevas (investigar, aliarse, empezar un monumento, subi
 impuestos) en la misma llamada de cada estación. Todo queda en la crónica y en la historia del
 mundo, y lo importante sale en los grandes momentos.
 
+### Aldeas que crecen y se expanden (3.1)
+
+Al simular el mundo entero con las aldeas se vio que una aldea se quedaba en 8 o 10 personas
+durante décadas y nunca llegaba a 20, así que el mundo no se expandía nunca:
+
+- en una casa cabían 4 personas, y una pareja con dos hijos ya no podía tener más;
+- los dos jóvenes solteros de la fundación se marchaban y no quedaba nadie para formar pareja.
+
+Cambios:
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| Personas por casa | 4 | 6 |
+| Desde cuántos habitantes se marcha alguien a fundar otra aldea | 20 (uno de cada dos días) | 14 (un 8 % de los días; con 20, uno de cada dos), y solo si quedan al menos dos jóvenes solteros |
+| Forasteros | solo con menos de 4 habitantes | además, con menos de 14, uno cada 36 días de media |
+| Hambre de los niños de menos de 12 años | como un adulto | el 60 % |
+| Comida guardada para que nazca alguien | 3 por persona | 5 por persona |
+| Con comida para menos de 3 días | cada uno cambia de oficio cuando decide | la mitad de los leñadores y canteros pasan a campesinos (o a pescadores en invierno) |
+
+Medido simulando el mundo entero con las reglas: en el año 18 nace el primer pueblo y en el año 30
+hay 10 aldeas, 2 pueblos y 530 personas, sin ninguna muerte por hambre.
+
 ### Cómo quedó en pueblos, villas y ciudades
 
 - Código: `jevmura/mundo/sociedad.py` (oro, edificios nuevos, avances, sociedad, sucesos y
