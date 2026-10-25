@@ -114,16 +114,28 @@ class Evolucion:
         return self.mapa.campos + [(x, y) for y in range(y0 + 1, y1) for x in range(x0 + 1, x1)]
 
     def rect_huertos(self) -> tuple[tuple[int, int], tuple[int, int]]:
+        if self.mapa.huertos:                 # los formatos nuevos traen su sitio
+            return tuple(self.mapa.huertos[0]), tuple(self.mapa.huertos[1])
         cx, cy = self.mapa.almacen
         (dx0, dy0), (dx1, dy1) = HUERTOS
         return (cx + dx0, cy + dy0), (cx + dx1, cy + dy1)
 
     def sitio(self, nombre: str) -> tuple[int, int]:
+        if nombre in self.mapa.sitios:
+            return tuple(self.mapa.sitios[nombre])
+        if nombre == "huertos" and self.mapa.huertos:
+            (x0, y0), (x1, y1) = self.rect_huertos()
+            return (x0 + x1) // 2, y1
         cx, cy = self.mapa.almacen
         dx, dy = EDIFICIOS[nombre]["sitio"]
         return cx + dx, cy + dy
 
+    def total_faroles(self) -> int:
+        return len(self.mapa.faroles) if self.mapa.formato != "clasica" else len(FAROLES)
+
     def sitio_farol(self, k: int) -> tuple[int, int]:
+        if self.mapa.formato != "clasica":
+            return tuple(self.mapa.faroles[k])
         cx, cy = self.mapa.almacen
         return cx + FAROLES[k][0], cy + FAROLES[k][1]
 
@@ -151,7 +163,7 @@ class Evolucion:
             sin_piedra = [c for c in self.casas if not c.quemada and not c.piedra]
             if sin_piedra:
                 lista.append(("casa_piedra", sin_piedra[0].id))
-            if self.faroles < len(FAROLES):
+            if self.faroles < self.total_faroles():
                 lista.append(("faroles", None))
         return lista
 

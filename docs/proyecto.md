@@ -727,6 +727,35 @@ Cambios:
 Medido simulando el mundo entero con las reglas: en el año 18 nace el primer pueblo y en el año 30
 hay 10 aldeas, 2 pueblos y 530 personas, sin ninguna muerte por hambre.
 
+### Formatos y tamaños de los mapas (3.2)
+
+Hasta la 3.1 todos los asentamientos salían del mismo mapa de 64 × 48 casillas: plaza en el
+centro, muralla cuadrada, campos al este, cantera al sur y río al este. Desde la 3.2, cada
+asentamiento nuevo tiene un formato y un tamaño (`jevmura/motor/formatos.py`):
+
+| Formato | Para | Cómo es | Tamaño (casillas) |
+|---|---|---|---|
+| Clásica | La aldea y las aldeas de antes | El mapa de siempre (`motor/mapa.py`) | 64 × 48 |
+| Río | Aldeas | El río cruza la aldea por dentro de la muralla, con dos puentes | 60–72 × 44–54 |
+| Camino | Aldeas | Una calle larga de punta a punta y la muralla alargada | 60–72 × 44–54 |
+| Lago | Aldeas | Un lago junto a la plaza (en el desierto, un oasis); la muralla se corta en la orilla | 60–72 × 44–54 |
+| Claro | Aldeas | En medio del bosque, muralla octogonal y una charca | 60–72 × 44–54 |
+| Pueblo | Pueblos | Calles que salen de la plaza en varias direcciones | 90–100 × 66–74 |
+| Villa | Villas | Dos plazas unidas por una calle y muralla grande | 120–132 × 88–98 |
+| Ciudad | Ciudades | Calles en cuadrícula cada 9 casillas y doble muralla (la interior, siempre entera) | 152–166 × 112–122 |
+
+- El formato de una aldea nueva sale al azar, con más peso según el terreno: claro en el bosque
+  (×3) y en la nieve (×2), lago en el desierto (×3) y en el pantano (×2). Además, la mitad de los
+  mapas salen en espejo (el río o el lago al otro lado).
+- En vez de casillas fijas, el generador busca sitio: primero el agua, la plaza, los caminos y la
+  muralla; después los campos y la cantera junto a la muralla; luego los 12 solares y los sitios de
+  los 8 edificios de la evolución, de la plaza hacia fuera; y al final los árboles en lo que queda.
+- Pueblos, villas y ciudades dibujan como mucho 140, 300 y 600 parcelas; las que no caben dentro
+  de la muralla salen fuera, como barrios. Su mapa se genera solo cuando alguien lo mira (tarda
+  una décima de segundo y puede haber cientos).
+- Una vez publicado, el generador de un formato de aldea no se puede cambiar: las aldeas guardan
+  sus árboles por orden y el mapa se vuelve a generar al cargarlas. Un cambio es un formato nuevo.
+
 ### Cómo quedó en pueblos, villas y ciudades
 
 - Código: `jevmura/mundo/sociedad.py` (oro, edificios nuevos, avances, sociedad, sucesos y

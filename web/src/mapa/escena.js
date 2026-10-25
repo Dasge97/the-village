@@ -290,8 +290,8 @@ export class Escena {
     const [ax, ay] = m.almacen;
     const faroles = PLAZA.filter(([, pieza]) => pieza === A.FAROL)
       .map(([, , dx, dy]) => ({ x: (ax + dx + 0.5) * C, y: (ay + dy - 0.6) * C, radio: 26 }));
-    return [{ x: (ax + 0.5) * C, y: (ay - 1.6) * C, radio: 34 }, ...faroles,
-      { x: (m.molino[0] - 1.5) * C, y: (m.molino[1] + 0.2) * C, radio: 24 }];
+    const molino = m.molino ? [{ x: (m.molino[0] - 1.5) * C, y: (m.molino[1] + 0.2) * C, radio: 24 }] : [];
+    return [{ x: (ax + 0.5) * C, y: (ay - 1.6) * C, radio: 34 }, ...faroles, ...molino];
   }
 
   _marcarOcupadas() {
@@ -304,8 +304,9 @@ export class Escena {
     for (const t of m.tramos) for (const [x, y] of t) o.add(`${x},${y}`);
     const [ax, ay] = m.almacen;
     zona(ax - 2, ay - 8, ax + 2, ay - 2);
-    zona(m.molino[0] - 4, m.molino[1] - 4, m.molino[0] + 1, m.molino[1]);
-    zona(m.puente[0] - 4, m.puente[1] - 1, m.puente[0] + 4, m.puente[1] + 2);
+    if (m.molino) zona(m.molino[0] - 4, m.molino[1] - 4, m.molino[0] + 1, m.molino[1]);
+    for (const [px, py] of this._listaPuentes()) zona(px - 4, py - 1, px + 4, py + 2);
+    for (const [x, y] of m.muros_fijos ?? []) o.add(`${x},${y}`);
     for (const [, , dx, dy] of PLAZA) zona(ax + dx - 1, ay + dy - 1, ax + dx + 1, ay + dy);
     const [[cx0], [cx1, cy1]] = m.campos;
     zona(cx0, cy1 + 1, cx1, cy1 + 2);
@@ -313,6 +314,9 @@ export class Escena {
   }
 
   _libre(x, y) { return !this.ocupadas.has(`${x},${y}`); }
+
+  // Los mapas de siempre tienen un puente; los formatos nuevos, varios o ninguno.
+  _listaPuentes() { return this.mapa.puentes ?? (this.mapa.puente ? [this.mapa.puente] : []); }
 
   _dibujarSuelo() {
     const { casillas, ancho, alto } = this.mapa;
@@ -343,7 +347,7 @@ export class Escena {
         if (adorno) this._poner(suelo, this._recorte("naturaleza", adorno), x, y);
       }
     }
-    this._dibujarPuente(suelo);
+    this.puentes = this._listaPuentes().map((p) => this._dibujarPuente(suelo, p)).filter(Boolean);
     // El suelo no cambia: se pinta una vez en una sola textura.
     const textura = this.app.renderer.generateTexture({ target: suelo, resolution: 1 });
     suelo.destroy({ children: true });
@@ -352,10 +356,12 @@ export class Escena {
   }
 
   // Tablones sobre el río, de la orilla oeste a la este, en las dos filas del camino.
-  _dibujarPuente(suelo) {
+  _dibujarPuente(suelo, [px, y]) {
     const { casillas } = this.mapa;
-    const [, y] = this.mapa.puente;
-    const agua = [y, y + 1].flatMap((f) => [...casillas[f]].map((t, x) => (t === "a" ? x : null)).filter((x) => x !== null));
+    // El agua de esas dos filas cerca del puente (un mapa puede tener lagos en la misma fila).
+    const agua = [y, y + 1].flatMap((f) => [...(casillas[f] ?? "")].map((t, x) => (t === "a" && Math.abs(x - px) <= 4 ? x : null))
+      .filter((x) => x !== null));
+    if (!agua.length) return null;
     const x0 = Math.min(...agua) - 1;
     const x1 = Math.max(...agua) + 1;
     const [ox, oy] = A.TABLONES.origen;
@@ -365,7 +371,7 @@ export class Escena {
       this._poner(suelo, this._recorte("agua", [ox + col * C, oy, C, C]), x, y).tint = A.TINTE_TABLONES;
       this._poner(suelo, this._recorte("agua", [ox + col * C, oy + 2 * C, C, C]), x, y + 1).tint = A.TINTE_TABLONES;
     }
-    this.puente = { x0, x1, y };
+    return { x0, x1, y };
   }
 
   // Ondas animadas en algunas casillas del río.
@@ -377,7 +383,7 @@ export class Escena {
         // Las ondas traen su propio fondo de agua: solo van donde no tapan la orilla.
         const agua = (nx, ny) => casillas[ny]?.[nx] === "a";
         if (!agua(x, y) || !agua(x - 1, y) || !agua(x + 1, y) || azar(x + 5, y + 9) > 0.3) continue;
-        if (this.puente && y >= this.puente.y && y <= this.puente.y + 1) continue;
+        if (this.puentes?.some((p) => y >= p.y && y <= p.y + 1 && x >= p.x0 && x <= p.x1)) continue;
         const onda = new AnimatedSprite(marcos);
         onda.position.set(x * C, y * C);
         onda.animationSpeed = 0.05 + 0.03 * azar(y, x);
@@ -409,8 +415,12 @@ export class Escena {
     // Los campos se dibujan como tres huertos vallados, con un paso de tierra entre ellos. El del
     // centro es de trigo. La valla se abre donde llega el camino.
     const [[cx0, cy0], [cx1, cy1]] = m.campos;
-    const alto = Math.floor((cy1 - cy0 - 1) / 3);
-    const huertos = [0, 1, 2].map((k) => [[cx0, cy0 + k * (alto + 1)], [cx1, k === 2 ? cy1 : cy0 + k * (alto + 1) + alto - 1]]);
+    // Se parten a lo largo del lado más largo (en los mapas nuevos los campos pueden ir tumbados).
+    const tumbados = cx1 - cx0 > cy1 - cy0;
+    const largo = Math.floor(((tumbados ? cx1 - cx0 : cy1 - cy0) - 1) / 3);
+    const huertos = [0, 1, 2].map((k) => tumbados
+      ? [[cx0 + k * (largo + 1), cy0], [k === 2 ? cx1 : cx0 + k * (largo + 1) + largo - 1, cy1]]
+      : [[cx0, cy0 + k * (largo + 1)], [cx1, k === 2 ? cy1 : cy0 + k * (largo + 1) + largo - 1]]);
     huertos.forEach(([[x0, y0], [x1, y1]], k) => {
       for (let y = y0 + 1; y < y1; y += 2) {
         for (let x = x0 + 1; x < x1; x++) {
@@ -437,13 +447,22 @@ export class Escena {
     for (const [imagen, pieza, dx, dy] of PLAZA) this._objeto(this._recorte(imagen, pieza), ax + dx, ay + dy);
 
     // Barandillas del puente: la de arriba queda detrás de quien cruza y la de abajo, delante.
-    const p = this.puente;
-    for (let x = p.x0; x <= p.x1; x++) {
-      this._objeto(this._recorte("casas", A.VALLA.frente), x, p.y - 1).position.y += 5;
-      this._objeto(this._recorte("casas", A.VALLA.frente), x, p.y + 1).position.y += 5;
+    for (const p of this.puentes) {
+      for (let x = p.x0; x <= p.x1; x++) {
+        this._objeto(this._recorte("casas", A.VALLA.frente), x, p.y - 1).position.y += 5;
+        this._objeto(this._recorte("casas", A.VALLA.frente), x, p.y + 1).position.y += 5;
+      }
     }
 
     // El molino: un edificio en la orilla y la rueda pegada a él, sobre el agua.
+    if (m.molino) this._dibujarMolino(m);
+    this._dibujarMuralla(m);
+    this.obra = this._objeto(this._recorte("casas", A.CASAS[0]), 0, 0);
+    this.obra.visible = false;
+    this.obra.alpha = 0.4;
+  }
+
+  _dibujarMolino(m) {
     const edificio = this._objeto(this._recorte("casas", A.EDIFICIO_MOLINO), m.molino[0] - 2, m.molino[1]);
     edificio.position.x = (m.molino[0] - 1.5) * C;
     const marcos = [0, 1, 2].map((i) => this._recorte("molino", [i * A.MOLINO.ancho, 0, A.MOLINO.ancho, A.MOLINO.alto]));
@@ -454,17 +473,24 @@ export class Escena {
     molino.animationSpeed = 0.08;
     molino.play();
     this.objetos.addChild(molino);
+  }
 
-    // Muralla: cada tramo es una fila de casillas de muro de piedra. Se enseñan los construidos.
-    const todas = m.tramos.flat();
-    const bx = todas.map(([x]) => x);
-    const by = todas.map(([, y]) => y);
-    const pieza = this._piezaDeBorde([[Math.min(...bx), Math.min(...by)], [Math.max(...bx), Math.max(...by)]], A.MURO);
+  // Muralla: cada tramo es una fila de casillas de muro de piedra; se enseñan los construidos. La
+  // pieza de cada casilla (esquina, frente o lado) sale de sus vecinas, para que valga cualquier
+  // forma: cuadrada, alargada u octógono. La muralla interior de las ciudades está siempre entera.
+  _dibujarMuralla(m) {
+    const muro = new Set([...m.tramos.flat(), ...(m.muros_fijos ?? [])].map(([x, y]) => `${x},${y}`));
+    const hay = (x, y) => muro.has(`${x},${y}`);
+    const pieza = (x, y) => {
+      const n = hay(x, y - 1); const s = hay(x, y + 1); const e = hay(x + 1, y); const o = hay(x - 1, y);
+      if (s && e && !n && !o) return A.MURO.arribaIzquierda;
+      if (s && o && !n && !e) return A.MURO.arribaDerecha;
+      if (n && e && !s && !o) return A.MURO.abajoIzquierda;
+      if (n && o && !s && !e) return A.MURO.abajoDerecha;
+      return (n || s) && !(e || o) ? A.MURO.lado : A.MURO.frente;
+    };
     this.tramos = m.tramos.map((casillas) => casillas.map(([x, y]) => this._objeto(this._recorte("muralla", pieza(x, y)), x, y)));
-
-    this.obra = this._objeto(this._recorte("casas", A.CASAS[0]), 0, 0);
-    this.obra.visible = false;
-    this.obra.alpha = 0.4;
+    for (const [x, y] of m.muros_fijos ?? []) this._objeto(this._recorte("muralla", pieza(x, y)), x, y);
   }
 
   // Devuelve, para una casilla del borde de un rectángulo, la pieza que le toca: esquina, tramo de

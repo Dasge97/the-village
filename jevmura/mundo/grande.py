@@ -15,7 +15,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 
 from ..motor import modelos as m
-from ..motor.mapa import generar_mapa
+from ..motor.formatos import formato_de_tipo, generar
 from ..motor.modelos import Persona, Suceso
 from ..motor.nombres import elegir_aspecto, elegir_nombre
 from .sociedad import EDIFICIOS_NUEVOS, MONUMENTOS, Sociedad
@@ -115,13 +115,30 @@ class Grande(Sociedad):
 
     def __post_init__(self):
         self.rng = random.Random(self.semilla * 31 + self.turno)
-        self.mapa = generar_mapa(self.semilla, self.bioma)
-        self.lotes = lotes(self.mapa)
+        self._mapa = None                    # se genera la primera vez que hace falta (ver `mapa`)
+        self._lotes = None
         self.decisor = None
         self.momentos: list[str] = []        # grandes momentos para la historia del mundo (los recoge el mundo)
         self.proteccion = 0.0                # defensa que prestan aliados y señor (mundo/relaciones.py)
         if not self.ano_en_curso:
             self.ano_en_curso = self._resumen_vacio()
+
+    # ---- mapa: solo cuando alguien lo mira ----
+
+    @property
+    def mapa(self):
+        """Cada tipo tiene su forma y su tamaño: pueblo, villa (dos plazas) y ciudad (cuadrícula).
+        Generarlo tarda una décima de segundo, así que solo se hace cuando la web lo pide: con
+        cientos de asentamientos, el servidor tardaría minutos en arrancar."""
+        if self._mapa is None:
+            self._mapa = generar(self.semilla, self.bioma, formato_de_tipo(self.tipo), self.tipo)
+        return self._mapa
+
+    @property
+    def lotes(self):
+        if self._lotes is None:
+            self._lotes = lotes(self.mapa, LOTES[self.tipo])
+        return self._lotes
 
     # ---- fecha, como en las aldeas ----
 
@@ -354,7 +371,7 @@ class Grande(Sociedad):
         self.ano_en_curso["ataques"] += 1
         self.ataque = {"turno": self.turno - m.TURNOS_POR_DIA + int(m.HORA_ATAQUE * m.TURNOS_POR_HORA),
                        "monstruo": dibujo, "cuantos": min(8, 2 + int(fuerza // 4)),
-                       "entrada": self.mapa.salidas[self.dia % len(self.mapa.salidas)], "frenado": frenado, "guardias": []}
+                       "entrada": None, "frenado": frenado, "guardias": []}      # la entrada la pone la vista
         if frenado:
             self._cronica("ataque", f"Una noche llegan {monstruos}. La guardia {'las' if femenino else 'los'} echa.")
             return
@@ -569,11 +586,14 @@ def nuevo(id: int, nombre: str, tipo: str, bioma: str, semilla: int, turno: int,
     return g
 
 
-def lotes(mapa) -> list[tuple[int, int]]:
+LOTES = {"pueblo": 140, "villa": 300, "ciudad": 600}     # parcelas que se dibujan, como mucho
+
+
+def lotes(mapa, maximo: int = 90) -> list[tuple[int, int]]:
     """Parcelas para casas y edificios: las de la aldea y, alrededor, muchas más en la hierba y el
     bosque (se talan los árboles que haya), de la plaza hacia fuera."""
     alto, ancho = len(mapa.casillas), len(mapa.casillas[0])
-    muro = {p for t in mapa.tramos for p in t}
+    muro = {p for t in mapa.tramos for p in t} | set(map(tuple, mapa.muros_fijos))
     libres = {"hierba", "bosque"}
     elegidos = list(mapa.solares)
     usadas = set()
@@ -592,7 +612,7 @@ def lotes(mapa) -> list[tuple[int, int]]:
             for p in sitio:
                 mapa.arboles.pop(p, None)
                 mapa.casillas[p[1]][p[0]] = "hierba"
-        if len(elegidos) >= 90:
+        if len(elegidos) >= maximo:
             break
     return elegidos
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .modelos import TRAMOS_MURALLA
 
@@ -30,7 +30,7 @@ class Mapa:
     casillas: list[list[str]]                # [y][x]: hierba, agua, bosque, campo, cantera, camino, plaza
     arboles: dict[tuple[int, int], float]    # crecimiento de 0 (tocón) a 1 (se puede cortar)
     almacen: tuple[int, int]
-    molino: tuple[int, int]
+    molino: tuple[int, int] | None
     solares: list[tuple[int, int]]
     muralla: list[tuple[int, int]]           # casilla central de cada tramo, en orden alrededor de la aldea
     tramos: list[list[tuple[int, int]]]      # casillas que ocupa cada tramo, para dibujarlo
@@ -38,8 +38,15 @@ class Mapa:
     orillas: list[tuple[int, int]]           # sitios de pesca
     cantera: list[tuple[int, int]]
     salidas: list[tuple[int, int]]           # bordes por donde se sale a explorar o a marcharse
-    puente: tuple[int, int]                  # centro del puente sobre el río
+    puente: tuple[int, int] | None           # centro del puente sobre el río
     bioma: str = "pradera"
+    # Lo que añaden los formatos nuevos (motor/formatos.py). El mapa clásico no los usa.
+    formato: str = "clasica"
+    sitios: dict = field(default_factory=dict)        # edificio de la evolución → casilla
+    faroles: list = field(default_factory=list)
+    huertos: tuple | None = None
+    puentes: list = field(default_factory=list)       # todos los puentes (el clásico solo tiene uno)
+    muros_fijos: list = field(default_factory=list)   # muralla interior de las ciudades, siempre entera
 
 
 def _tramos_muralla() -> list[list[tuple[int, int]]]:

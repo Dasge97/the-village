@@ -43,11 +43,11 @@ class Caminos:
         m = self.mapa
         w = self.ancho
         self.coste = [COSTE.get(t, BLOQUEADA) for fila in m.casillas for t in fila]
-        px, py = m.puente
-        for y in (py, py + 1):                  # el puente: las casillas de agua bajo los tablones
-            for x in range(px - 3, px + 4):
-                if 0 <= x < w and m.casillas[y][x] == "agua":
-                    self.coste[y * w + x] = COSTE["camino"]
+        for px, py in m.puentes or ([m.puente] if m.puente else []):
+            for y in (py, py + 1):              # el puente: las casillas de agua bajo los tablones
+                for x in range(px - 3, px + 4):
+                    if 0 <= x < w and 0 <= y < self.alto and m.casillas[y][x] == "agua":
+                        self.coste[y * w + x] = COSTE["camino"]
         bloquear = []
         for c in casas:                          # la casa ocupa 4 × 3 casillas; se entra por delante
             bloquear += [(x, y) for x in range(c.x - 1, c.x + 3) for y in range(c.y - 2, c.y + 1)]
@@ -55,6 +55,7 @@ class Caminos:
         bloquear += [(x, y) for x in range(ax - 1, ax + 3) for y in range(ay - 7, ay - 1)]
         for tramo in m.tramos[:muralla]:
             bloquear += tramo
+        bloquear += [tuple(q) for q in m.muros_fijos]
         for x, y in bloquear:
             if 0 <= x < w and 0 <= y < self.alto:
                 self.coste[y * w + x] = BLOQUEADA

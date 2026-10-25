@@ -22,6 +22,7 @@ from . import modelos as m
 from .decisores import Decision, Decisor, DecisorReglas, EstadoAldea, Opcion, Situacion
 from .caminos import Caminos
 from .evolucion import EDIFICIOS, ETAPAS, Evolucion, coste_obra
+from .formatos import generar
 from .mapa import generar_mapa
 from .modelos import Casa, Habitante, Obra, Persona, Suceso
 from .nombres import elegir_aspecto, elegir_nombre
@@ -76,11 +77,12 @@ class Aldea(Evolucion):
     ALMACEN_MAX = ALMACEN_MAX
 
     def __init__(self, semilla: int = 0, decisor: Decisor | None = None, habitantes: int = 8,
-                 hora_inicial: float = 0, bioma: str = "pradera"):
+                 hora_inicial: float = 0, bioma: str = "pradera", formato: str = "clasica"):
         self.semilla = semilla
         self.bioma = bioma
+        self.formato = formato               # «clasica» (el mapa de siempre) o uno de motor/formatos.py
         self.rng = random.Random(semilla)
-        self.mapa = generar_mapa(semilla, bioma)
+        self.mapa = generar_mapa(semilla, bioma) if formato == "clasica" else generar(semilla, bioma, formato)
         self.caminos = Caminos(self.mapa)
         self.respaldo = DecisorReglas(random.Random(semilla + 1))
         self.decisor = decisor or self.respaldo

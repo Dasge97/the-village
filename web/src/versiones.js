@@ -3,6 +3,19 @@
 
 export const VERSIONES = [
   {
+    version: "3.2",
+    fecha: "25-10-2026",
+    titulo: "Cada sitio con su forma",
+    cambios: [
+      "Las aldeas nuevas ya no son todas iguales. Hay cuatro formatos: de río, de camino, de lago y de claro.",
+      "En la de río, el río cruza la aldea y tiene dos puentes. La de camino tiene una calle larga y la muralla alargada. La de lago tiene el agua junto a la plaza; en el desierto es un oasis. La de claro está en medio del bosque, con la muralla redonda.",
+      "El terreno elige el formato más a menudo: en el bosque salen más claros y en el desierto, más oasis.",
+      "Cada aldea tiene su tamaño, y las casas, los campos, la cantera y los edificios se colocan donde hay sitio.",
+      "Los pueblos, villas y ciudades son mucho más grandes. Los pueblos tienen calles que salen de la plaza; las villas, dos plazas; las ciudades, calles en cuadrícula y doble muralla.",
+      "La aldea de siempre se queda como está, para no estropear su partida.",
+    ],
+  },
+  {
     version: "3.1",
     fecha: "25-10-2026",
     titulo: "El mundo se expande",

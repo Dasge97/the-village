@@ -27,6 +27,7 @@ from ..motor import modelos as m
 from ..motor.aldea import Aldea, con_articulo
 from ..motor.decisores import Decisor
 from ..motor.evolucion import INSTRUCCIONES_CONSEJO_ALDEA
+from ..motor.formatos import elegir_formato
 from ..motor.nombres import ASPECTOS as _ASPECTOS
 from . import zonas
 from .grande import Grande
@@ -266,7 +267,8 @@ class Mundo(Relaciones):
         id = max(self.meta) + 1
         principal = self.aldeas[1]
         terreno = zonas.bioma(principal.semilla, *zona)
-        aldea = Aldea(principal.semilla + SEMILLA_POR_ID * (id - 1), None, habitantes=0, bioma=terreno)
+        formato = elegir_formato(random.Random(principal.semilla + id * 17), terreno)
+        aldea = Aldea(principal.semilla + SEMILLA_POR_ID * (id - 1), None, habitantes=0, bioma=terreno, formato=formato)
         aldea.nombre = SEGUNDA if id == 2 else self._nombre_nuevo()
         aldea.turno = principal.turno
         fichero = os.path.basename(_ruta_segunda(self.ruta_db)) if id == 2 else f"aldea-{id}.db"

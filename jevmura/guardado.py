@@ -71,6 +71,7 @@ class Guardado:
         estado = {
             "semilla": aldea.semilla,
             "bioma": aldea.bioma,
+            "formato": aldea.formato,
             "nombre": aldea.nombre,
             "turno": aldea.turno,
             "rng": aldea.rng.getstate(),
@@ -115,7 +116,7 @@ class Guardado:
 
     def cargar(self, decisor: Decisor | None = None) -> Aldea:
         e = json.loads(self._valor("estado"))
-        aldea = Aldea(e["semilla"], decisor, bioma=e.get("bioma", "pradera"))
+        aldea = Aldea(e["semilla"], decisor, bioma=e.get("bioma", "pradera"), formato=e.get("formato", "clasica"))
         aldea.nombre = e.get("nombre", aldea.nombre)
         aldea.turno = e["turno"]
         aldea.rng.setstate(_rng(e["rng"]))

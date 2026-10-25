@@ -46,6 +46,12 @@ def _notable(g: Grande, n, i: int, casas: list[dict]) -> dict:
     }
 
 
+def _ataque(g: Grande) -> dict:
+    """El ataque con su entrada: un borde del mapa por donde llegan los monstruos."""
+    salidas = g.mapa.salidas
+    return {**g.ataque, "entrada": g.ataque.get("entrada") or salidas[g.dia % len(salidas)]}
+
+
 def estado_grande(g: Grande) -> dict:
     casas = _casas(g)
     obra = None
@@ -62,7 +68,7 @@ def estado_grande(g: Grande) -> dict:
         "recursos": {"comida": round(g.comida), "madera": round(g.madera), "piedra": round(g.piedra)},
         "muralla": g.edificios.get("muralla", 0),
         "casas": casas, "obra": obra, "arboles_cortados": {},
-        "ataque": g.ataque if g.ataque and t - g.ataque["turno"] < TURNOS_ATAQUE_VISIBLE else None,
+        "ataque": _ataque(g) if g.ataque and t - g.ataque["turno"] < TURNOS_ATAQUE_VISIBLE else None,
         "habitantes": [_notable(g, n, i, casas) for i, n in enumerate(g.notables.values())],
         "sucesos": [{"turno": s.turno, "tipo": s.tipo, "texto": s.texto} for s in g.cronica[-30:]],
         "multitud": min(45, round(pob / 8)) if not g.de_noche() else min(8, round(pob / 60)),
