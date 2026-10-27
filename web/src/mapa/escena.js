@@ -45,6 +45,10 @@ function oscuridad(hora) {
 // el minimapa, y alrededor carga el resto del mundo (ver vecindad.js). Los vecinos que se ven son
 // escenas «embebidas»: comparten la aplicación de la principal y dibujan dentro de un contenedor
 // suyo, sin cámara, sin minimapa, sin clima y sin noche propia (los cubre la de la principal).
+// Colores del minimapa: terreno de cada zona (como en el mapa del mundo) y bloque de cada tipo.
+const TERRENO_MINI = { pradera: 0x7fb84a, bosque: 0x4f8f36, desierto: 0xd99a55, nieve: 0xdcdde6, pantano: 0x857558 };
+const BLOQUE_MINI = { aldea: 0xd99a5a, pueblo: 0xd9733a, villa: 0xc4582f, ciudad: 0xa4412a };
+
 export class Escena {
   constructor(elemento, { alSeleccionar, alDejarDeSeguir, alEntrar, app, contenedor, capaLuces } = {}) {
     this.elemento = elemento;
@@ -310,6 +314,7 @@ export class Escena {
     this.destruido = true;
     this._observador?.disconnect();
     this.vecindad?.destruir();
+    clearInterval(this._relojMini);
     if (this.listo) this._cerrar();
   }
 
@@ -604,33 +609,120 @@ export class Escena {
 
   // ---- minimapa ----
 
-  // La aldea entera en pequeño, abajo a la derecha: suelo, árboles y casas, los habitantes como
-  // puntos y un rectángulo con la parte que se está viendo. Al pulsarlo, la cámara salta allí.
+  // Abajo a la derecha, el trozo del mundo donde está la cámara: 3 × 3 zonas (o más, para que quepa
+  // una ciudad grande), cada una con el color de su terreno y niebla donde nadie ha llegado. Los
+  // asentamientos vecinos son bloques del color de su tipo; el principal se ve con su suelo, sus
+  // casas y su gente. Un rectángulo marca lo que se está viendo y, al pulsar, la cámara salta allí.
+  // El trozo sigue a la cámara cuando pasa a otra zona. Sin mapa continuo, enseña solo el mapa.
   _crearMinimapa() {
     const ANCHO_MINI = 176;
-    const W = this.mapa.ancho * C;
-    const H = this.mapa.alto * C;
-    const e = ANCHO_MINI / W;
+    const [zw, zh] = this.mapa.zona_casillas ?? [this.mapa.ancho, this.mapa.alto];
     this.mini = new Container();
-    this.mini.escala = e;
     this.mini.ancho = ANCHO_MINI;
-    this.mini.alto = Math.round(H * e);
+    this.mini.alto = Math.round((ANCHO_MINI * zh) / zw);
+    // El trozo mide `n` zonas de lado: el asentamiento principal más una alrededor, como poco 3.
+    this.mini.n = this.mapa.origen ? Math.max(3, Math.round(this.mapa.ancho / zw) + 2) : 1;
+    this.mini.zona = [zw, zh];
+    this.mini.escala = ANCHO_MINI / (this.mini.n * zw * C);
     const marco = new Graphics().roundRect(-4, -4, this.mini.ancho + 8, this.mini.alto + 8, 10).fill({ color: 0x15281f, alpha: 0.85 });
+    this.mini.fondo = new Graphics();
+    this.mini.bloques = new Graphics();
+    // El principal, en pequeño: todo en píxeles de su mapa por la escala del minimapa.
+    this.mini.detalle = new Container();
     const suelo = new Sprite(this.texturaSuelo);        // ya hecha en pequeño (ver _dibujarSuelo)
-    suelo.scale.set(e / this.escalaSuelo);
+    suelo.scale.set(this.mini.escala / this.escalaSuelo);
     const arboles = new Graphics();
-    for (const [x, y] of this.mapa.arboles) arboles.circle((x + 0.5) * C * e, (y + 0.5) * C * e, 1.6);
+    const radio = Math.max(0.6, 1.6 * this.mini.escala * 6);
+    for (const [x, y] of this.mapa.arboles) arboles.circle((x + 0.5) * C * this.mini.escala, (y + 0.5) * C * this.mini.escala, radio);
     arboles.fill(0x2e6b35);
     this.mini.casas = new Graphics();
     this.mini.puntos = new Graphics();
+    this.mini.detalle.addChild(suelo, arboles, this.mini.casas, this.mini.puntos);
     this.mini.vista = new Graphics();
     const recorte = new Graphics().roundRect(0, 0, this.mini.ancho, this.mini.alto, 6).fill(0xffffff);
     const contenido = new Container();
-    contenido.addChild(suelo, arboles, this.mini.casas, this.mini.puntos, this.mini.vista, recorte);
+    contenido.addChild(this.mini.fondo, this.mini.bloques, this.mini.detalle, this.mini.vista, recorte);
     contenido.mask = recorte;
     this.mini.addChild(marco, contenido);
     this.app.stage.addChild(this.mini);
     this.mini.visible = this.minimapaVisible ?? true;
+    this.mini.region = null;
+    if (this.mapa.origen) {
+      this._cargarMundoMini();
+      this._relojMini = setInterval(() => this._cargarMundoMini(), 30000);
+    }
+  }
+
+  // Terrenos y asentamientos de todo el mundo (lo mismo que el mapa del mundo), para el minimapa.
+  async _cargarMundoMini() {
+    try {
+      const d = await (await fetch("/api/mundo")).json();
+      if (this.destruido) return;
+      this.mini.mundo = { zonas: new Map(d.zonas.map((z) => [`${z.x},${z.y}`, z.bioma])), asentamientos: d.asentamientos, lado: d.lado };
+      this.mini.region = null;                  // que se vuelva a pintar
+      this._colocarMinimapa();
+    } catch {
+      // Sin datos del mundo, el minimapa enseña solo el asentamiento principal.
+    }
+  }
+
+  // De píxeles del mapa principal a píxeles del minimapa (y al revés), según el trozo que enseña.
+  _aMini(x, y) {
+    const [ox, oy] = this.mapa.origen ?? [0, 0];
+    const [rx, ry] = this.mini.region ?? [0, 0];
+    const [zw, zh] = this.mini.zona;
+    const e = this.mini.escala;
+    return [(x + (ox - rx * zw) * C) * e, (y + (oy - ry * zh) * C) * e];
+  }
+
+  _deMini(mx, my) {
+    const [ox, oy] = this.mapa.origen ?? [0, 0];
+    const [rx, ry] = this.mini.region ?? [0, 0];
+    const [zw, zh] = this.mini.zona;
+    const e = this.mini.escala;
+    return [mx / e - (ox - rx * zw) * C, my / e - (oy - ry * zh) * C];
+  }
+
+  // El trozo del mundo que toca enseñar: centrado en la zona donde está la cámara.
+  _regionMini() {
+    if (!this.mapa.origen) return [0, 0];
+    const [ox, oy] = this.mapa.origen;
+    const [zw, zh] = this.mini.zona;
+    const n = this.mini.n;
+    const lado = this.mini.mundo?.lado ?? Math.round(this.mapa.mundo[0] / zw);
+    const zx = Math.floor((this.camara.x / C + ox) / zw);
+    const zy = Math.floor((this.camara.y / C + oy) / zh);
+    const x = Math.max(0, Math.min(lado - n, zx - Math.floor(n / 2)));
+    const y = Math.max(0, Math.min(lado - n, zy - Math.floor(n / 2)));
+    return [x, y];
+  }
+
+  _pintarRegionMini() {
+    const m = this.mini;
+    const [rx, ry] = m.region;
+    const [zw, zh] = m.zona;
+    const lz = zw * C * m.escala;               // lado de una zona en el minimapa
+    const hz = zh * C * m.escala;
+    m.fondo.clear();
+    m.bloques.clear();
+    if (!this.mapa.origen) return;
+    for (let y = 0; y < m.n; y++) {
+      for (let x = 0; x < m.n; x++) {
+        const bioma = m.mundo?.zonas.get(`${rx + x},${ry + y}`);
+        m.fondo.rect(x * lz, y * hz, lz + 0.5, hz + 0.5).fill(bioma ? TERRENO_MINI[bioma] ?? TERRENO_MINI.pradera : 0x22342a);
+      }
+    }
+    for (const a of m.mundo?.asentamientos ?? []) {
+      if (a.id === this.mapa.id) continue;
+      const h = a.huella ?? 1;
+      const [ax, ay] = a.zona;
+      if (ax + h <= rx || ay + h <= ry || ax >= rx + m.n || ay >= ry + m.n) continue;
+      // Una aldea ocupa el centro de su zona; lo demás, la zona entera.
+      const margen = a.tipo === "aldea" ? 0.18 : 0.04;
+      m.bloques.rect((ax - rx + margen) * lz, (ay - ry + margen) * hz, (h - 2 * margen) * lz, (h - 2 * margen) * hz)
+        .fill(BLOQUE_MINI[a.tipo] ?? BLOQUE_MINI.aldea);
+    }
+    m.detalle.position.set(...this._aMini(0, 0));
   }
 
   mostrarMinimapa(visible) {
@@ -641,24 +733,31 @@ export class Escena {
   _colocarMinimapa() {
     if (!this.mini) return;
     this.mini.position.set(this.elemento.clientWidth - this.mini.ancho - 20, this.elemento.clientHeight - this.mini.alto - 20);
+    const region = this._regionMini();
+    if (!this.mini.region || region[0] !== this.mini.region[0] || region[1] !== this.mini.region[1]) {
+      this.mini.region = region;
+      this._pintarRegionMini();
+    }
     const e = this.mini.escala;
     const z = this.camara.zoom;
     const w = this.elemento.clientWidth / z;
     const h = this.elemento.clientHeight / z;
-    this.mini.vista.clear()
-      .rect((this.camara.x - w / 2) * e, (this.camara.y - h / 2) * e, w * e, h * e)
-      .stroke({ color: 0xffffff, width: 1.5 });
+    const [x, y] = this._aMini(this.camara.x - w / 2, this.camara.y - h / 2);
+    this.mini.vista.clear().rect(x, y, w * e, h * e).stroke({ color: 0xffffff, width: 1.5 });
   }
 
   _actualizarMinimapa(estado) {
     if (!this.mini) return;
     const e = this.mini.escala;
+    const minimo = 0.8;
     this.mini.casas.clear();
-    for (const c of estado.casas) this.mini.casas.rect((c.x - 1.5) * C * e, (c.y - 2) * C * e, 4 * C * e, 3 * C * e);
+    for (const c of estado.casas) {
+      this.mini.casas.rect((c.x - 1.5) * C * e, (c.y - 2) * C * e, Math.max(minimo, 4 * C * e), Math.max(minimo, 3 * C * e));
+    }
     this.mini.casas.fill(0xe0703a);
     this.mini.puntos.clear();
     for (const h of estado.habitantes) {
-      if (!h.fuera) this.mini.puntos.circle((h.x + 0.5) * C * e, (h.y + 0.5) * C * e, h.id === this.marcado ? 3 : 2);
+      if (!h.fuera) this.mini.puntos.circle((h.x + 0.5) * C * e, (h.y + 0.5) * C * e, h.id === this.marcado ? 2.5 : 1.5);
     }
     this.mini.puntos.fill(0xf5d36b);
   }
@@ -670,8 +769,7 @@ export class Escena {
     const y = evento.clientY - caja.top - this.mini.y;
     if (x < 0 || y < 0 || x > this.mini.ancho || y > this.mini.alto) return false;
     if (this.siguiendo) { this.siguiendo = false; this.alDejarDeSeguir(); }
-    this.camara.x = x / this.mini.escala;
-    this.camara.y = y / this.mini.escala;
+    [this.camara.x, this.camara.y] = this._deMini(x, y);
     this._aplicarCamara();
     return true;
   }

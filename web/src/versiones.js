@@ -3,6 +3,16 @@
 
 export const VERSIONES = [
   {
+    version: "3.4.1",
+    fecha: "27-10-2026",
+    titulo: "Minimapa del mundo",
+    cambios: [
+      "El minimapa ya no enseña solo tu asentamiento: enseña el trozo del mundo donde está la vista, con las zonas de alrededor.",
+      "Cada zona sale con el color de su terreno, y los asentamientos vecinos como bloques del color de su tipo.",
+      "Al moverte por el mundo, el minimapa te sigue. Al pulsarlo, la vista salta a ese punto, también fuera de tu asentamiento.",
+    ],
+  },
+  {
     version: "3.4",
     fecha: "25-10-2026",
     titulo: "Un solo mapa",

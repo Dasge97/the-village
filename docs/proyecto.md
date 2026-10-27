@@ -800,6 +800,10 @@ se mueve la cámara de la web:
   (su estado se pide cada 3 segundos). La noche de la principal cubre a todos.
 - La cámara llega a todo el mundo y se aleja hasta 0,15. Pulsar en un vecino entra en él sin mover
   la vista (`camaraPendiente`).
+- Minimapa (3.4.1): enseña el trozo del mundo donde está la cámara, de 3 × 3 zonas (o el tamaño
+  del asentamiento principal más una zona alrededor), y lo cambia al pasar la cámara a otra zona.
+  Cada zona con el color de su terreno o niebla; los vecinos, bloques del color de su tipo (de
+  `/api/mundo`, cada 30 segundos); el principal, con su suelo, sus casas y su gente.
 
 ### Cómo quedó en pueblos, villas y ciudades
 
